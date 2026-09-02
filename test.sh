@@ -18,5 +18,6 @@ assert() {
 
 assert 0 0
 assert 42 42
+assert 3 "2+143-141-1"
 
 echo OK
