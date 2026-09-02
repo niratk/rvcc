@@ -6,6 +6,103 @@ enum LexState {
     Minus,
 }
 
+mod lexer {
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum Token {
+        Num(u64),
+        Plus,
+        Minus,
+        Mult,
+        Div,
+        ParL,
+        ParR,
+    }
+
+    pub fn lex(input: &str) -> Result<Vec<Token>, ()> {
+        let mut v = Vec::<Token>::new();
+        let pretokens = input.split(" ");
+        for pretoken in pretokens.into_iter() {
+            let mut pos: usize = 0;
+            let pretoken = pretoken.as_bytes();
+            while pos < pretoken.len() {
+                match pretoken[pos] {
+                    b'+' => {
+                        v.push(Token::Plus);
+                        pos += 1;
+                    }
+                    b'-' => {
+                        v.push(Token::Minus);
+                        pos += 1;
+                    }
+                    b'*' => {
+                        v.push(Token::Mult);
+                        pos += 1;
+                    }
+                    b'/' => {
+                        v.push(Token::Div);
+                        pos += 1;
+                    }
+                    b'(' => {
+                        v.push(Token::ParL);
+                        pos += 1;
+                    }
+                    b')' => {
+                        v.push(Token::ParR);
+                        pos += 1;
+                    }
+                    b'0'..=b'9' => {
+                        let start = pos;
+                        pos += 1;
+                        while pos < pretoken.len() && pretoken[pos].is_ascii_digit() {
+                            pos += 1;
+                        }
+                        let value: u64 = std::str::from_utf8(&pretoken[start..pos])
+                            .unwrap()
+                            .parse()
+                            .unwrap();
+                        v.push(Token::Num(value));
+                    }
+                    _ => {
+                        eprintln!("Invalid Token Detected!");
+                        return Err(());
+                    }
+                }
+            }
+        }
+        Ok(v)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn lex_test() {
+            let input = "3 + (12 - 8)/12*9-21 + 4* 3";
+            let expected = vec![
+                Token::Num(3),
+                Token::Plus,
+                Token::ParL,
+                Token::Num(12),
+                Token::Minus,
+                Token::Num(8),
+                Token::ParR,
+                Token::Div,
+                Token::Num(12),
+                Token::Mult,
+                Token::Num(9),
+                Token::Minus,
+                Token::Num(21),
+                Token::Plus,
+                Token::Num(4),
+                Token::Mult,
+                Token::Num(3),
+            ];
+            assert_eq!(lex(input), Ok(expected));
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().collect();
     if argv.len() != 2 {
@@ -13,7 +110,7 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let mut input = argv[1].as_bytes();
+    let input = argv[1].as_bytes();
 
     println!(".globl main");
     println!("main:");
