@@ -7,6 +7,7 @@ enum LexState {
 }
 
 mod lexer {
+    use std::process::ExitCode;
 
     #[derive(Debug, PartialEq, Eq)]
     pub enum Token {
@@ -19,57 +20,58 @@ mod lexer {
         ParR,
     }
 
-    pub fn lex(input: &str) -> Result<Vec<Token>, ()> {
+    pub fn lex(input: &str) -> Result<Vec<Token>, String> {
         let mut v = Vec::<Token>::new();
-        let pretokens = input.split(" ");
-        for pretoken in pretokens.into_iter() {
-            let mut pos: usize = 0;
-            let pretoken = pretoken.as_bytes();
-            while pos < pretoken.len() {
-                match pretoken[pos] {
-                    b'+' => {
-                        v.push(Token::Plus);
+        let mut pos = 0;
+        let input = input.as_bytes();
+        while pos < input.len() {
+            match input[pos] {
+                c if c.is_ascii_digit() => {
+                    let start = pos;
+                    pos += 1;
+                    while pos < input.len() && input[pos].is_ascii_digit() {
                         pos += 1;
                     }
-                    b'-' => {
-                        v.push(Token::Minus);
-                        pos += 1;
-                    }
-                    b'*' => {
-                        v.push(Token::Mult);
-                        pos += 1;
-                    }
-                    b'/' => {
-                        v.push(Token::Div);
-                        pos += 1;
-                    }
-                    b'(' => {
-                        v.push(Token::ParL);
-                        pos += 1;
-                    }
-                    b')' => {
-                        v.push(Token::ParR);
-                        pos += 1;
-                    }
-                    b'0'..=b'9' => {
-                        let start = pos;
-                        pos += 1;
-                        while pos < pretoken.len() && pretoken[pos].is_ascii_digit() {
-                            pos += 1;
-                        }
-                        let value: u64 = std::str::from_utf8(&pretoken[start..pos])
-                            .unwrap()
-                            .parse()
-                            .unwrap();
-                        v.push(Token::Num(value));
-                    }
-                    _ => {
-                        eprintln!("Invalid Token Detected!");
-                        return Err(());
-                    }
+                    let num: u64 = std::str::from_utf8(&input[start..pos])
+                        .unwrap()
+                        .parse()
+                        .unwrap();
+                    v.push(Token::Num(num));
+                }
+                c if c.is_ascii_whitespace() => {
+                    pos += 1;
+                }
+                b'+' => {
+                    v.push(Token::Plus);
+                    pos += 1;
+                }
+                b'-' => {
+                    v.push(Token::Minus);
+                    pos += 1;
+                }
+                b'*' => {
+                    v.push(Token::Mult);
+                    pos += 1;
+                }
+                b'/' => {
+                    v.push(Token::Div);
+                    pos += 1;
+                }
+                b'(' => {
+                    v.push(Token::ParL);
+                    pos += 1;
+                }
+                b')' => {
+                    v.push(Token::ParR);
+                    pos += 1;
+                }
+                _ => {
+                    eprintln!("Invalid Character at {}", pos);
+                    return Err(format!("Invalid Character at {}", pos));
                 }
             }
         }
+
         Ok(v)
     }
 
@@ -79,6 +81,7 @@ mod lexer {
         #[test]
         fn lex_test() {
             let input = "3 + (12 - 8)/12*9-21 + 4* 3";
+            let input2 = "3a+10-0=0";
             let expected = vec![
                 Token::Num(3),
                 Token::Plus,
@@ -99,6 +102,7 @@ mod lexer {
                 Token::Num(3),
             ];
             assert_eq!(lex(input), Ok(expected));
+            assert_eq!(lex(input2), Err(String::from("Invalid Character at 1")));
         }
     }
 }
