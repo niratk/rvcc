@@ -7,9 +7,8 @@ enum LexState {
 }
 
 mod lexer {
-    use std::process::ExitCode;
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, Clone)]
     pub enum Token {
         Num(u64),
         Plus,
@@ -103,6 +102,234 @@ mod lexer {
             ];
             assert_eq!(lex(input), Ok(expected));
             assert_eq!(lex(input2), Err(String::from("Invalid Character at 1")));
+        }
+    }
+}
+
+mod parser {
+    use crate::lexer::Token;
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub enum Node {
+        Add(Box<Node>, Box<Node>),
+        Sub(Box<Node>, Box<Node>),
+        Mul(Box<Node>, Box<Node>),
+        Div(Box<Node>, Box<Node>),
+        Num(u64),
+    }
+
+    fn parse_factor(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+        match input.get(*pos) {
+            Some(Token::Num(n)) => {
+                *pos += 1;
+                return Ok(Node::Num(*n));
+            }
+            Some(Token::ParL) => {
+                *pos += 1;
+                let e = parse_expr(input, pos)?;
+                match input.get(*pos) {
+                    Some(Token::ParR) => {
+                        *pos += 1;
+                        return Ok(e);
+                    }
+                    None => {
+                        return Err(String::from("Unexpected EOF."));
+                    }
+                    _ => {
+                        return Err(String::from("Unexpected character. ')' is expected."));
+                    }
+                }
+            }
+            None => {
+                return Err(String::from("Unexpected EOF"));
+            }
+            Some(token) => {
+                return Err(format!("Unexpected token: {:?}", token));
+            }
+        }
+    }
+
+    fn parse_term(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+        let mut f = parse_factor(input, pos)?;
+        loop {
+            match input.get(*pos) {
+                Some(Token::Mult) => {
+                    *pos += 1;
+                    let f2 = parse_factor(input, pos)?;
+                    f = Node::Mul(Box::new(f), Box::new(f2));
+                }
+                Some(Token::Div) => {
+                    *pos += 1;
+                    let f2 = parse_factor(input, pos)?;
+                    f = Node::Div(Box::new(f), Box::new(f2));
+                }
+                None => {
+                    break;
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        Ok(f)
+    }
+
+    fn parse_expr(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+        let mut t = parse_term(input, pos)?;
+        loop {
+            match input.get(*pos) {
+                Some(Token::Plus) => {
+                    *pos += 1;
+                    let t2 = parse_term(input, pos)?;
+                    t = Node::Add(Box::new(t), Box::new(t2));
+                }
+                Some(Token::Minus) => {
+                    *pos += 1;
+                    let t2 = parse_term(input, pos)?;
+                    t = Node::Sub(Box::new(t), Box::new(t2));
+                }
+                None => {
+                    break;
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+        Ok(t)
+    }
+
+    pub fn parse(input: &[Token]) -> Result<Node, String> {
+        let mut pos = 0;
+
+        let node = parse_expr(input, &mut pos)?;
+
+        if pos != input.len() {
+            return Err(format!(
+                "Unexpected token at position {}: {:?}",
+                pos, input[pos]
+            ));
+        }
+
+        Ok(node)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn parse_test() {
+            let input = vec![
+                Token::Num(3),
+                Token::Plus,
+                Token::ParL,
+                Token::Num(12),
+                Token::Minus,
+                Token::Num(8),
+                Token::ParR,
+                Token::Div,
+                Token::Num(12),
+                Token::Mult,
+                Token::Num(9),
+                Token::Minus,
+                Token::Num(21),
+                Token::Plus,
+                Token::Num(4),
+                Token::Mult,
+                Token::Num(3),
+            ]; // "3 + (12 - 8)/12*9-21 + 4* 3"
+            let expected = Node::Add(
+                Box::new(Node::Sub(
+                    Box::new(Node::Add(
+                        Box::new(Node::Num(3)),
+                        Box::new(Node::Mul(
+                            Box::new(Node::Div(
+                                Box::new(Node::Sub(
+                                    Box::new(Node::Num(12)),
+                                    Box::new(Node::Num(8)),
+                                )),
+                                Box::new(Node::Num(12)),
+                            )),
+                            Box::new(Node::Num(9)),
+                        )),
+                    )),
+                    Box::new(Node::Num(21)),
+                )),
+                Box::new(Node::Mul(Box::new(Node::Num(4)), Box::new(Node::Num(3)))),
+            );
+            assert_eq!(parse(&input), Ok(expected));
+        }
+
+        #[test]
+        fn parse_empty_input() {
+            let input = vec![];
+
+            assert!(parse(&input).is_err());
+        }
+
+        #[test]
+        fn parse_trailing_operator() {
+            // "1 +"
+            let input = vec![Token::Num(1), Token::Plus];
+
+            assert!(parse(&input).is_err());
+        }
+
+        #[test]
+        fn parse_leading_operator() {
+            // "+ 1"
+            let input = vec![Token::Plus, Token::Num(1)];
+
+            assert!(parse(&input).is_err());
+        }
+
+        #[test]
+        fn parse_consecutive_operators() {
+            // "1 + * 2"
+            let input = vec![Token::Num(1), Token::Plus, Token::Mult, Token::Num(2)];
+
+            assert!(parse(&input).is_err());
+        }
+
+        #[test]
+        fn parse_missing_right_parenthesis() {
+            // "(1 + 2"
+            let input = vec![Token::ParL, Token::Num(1), Token::Plus, Token::Num(2)];
+
+            assert!(parse(&input).is_err());
+        }
+
+        #[test]
+        fn parse_extra_right_parenthesis() {
+            // "1 + 2)"
+            let input = vec![Token::Num(1), Token::Plus, Token::Num(2), Token::ParR];
+
+            assert!(parse(&input).is_err());
+        }
+
+        #[test]
+        fn parse_empty_parentheses() {
+            // "()"
+            let input = vec![Token::ParL, Token::ParR];
+
+            assert!(parse(&input).is_err());
+        }
+
+        #[test]
+        fn parse_missing_operator() {
+            // "1 2"
+            let input = vec![Token::Num(1), Token::Num(2)];
+
+            assert!(parse(&input).is_err());
+        }
+
+        #[test]
+        fn parse_double_division() {
+            // "1 / / 2"
+            let input = vec![Token::Num(1), Token::Div, Token::Div, Token::Num(2)];
+
+            assert!(parse(&input).is_err());
         }
     }
 }
