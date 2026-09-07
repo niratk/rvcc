@@ -149,18 +149,35 @@ mod parser {
         }
     }
 
+    fn parse_unary(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+        match input.get(*pos) {
+            Some(Token::Plus) => {
+                *pos += 1;
+                return parse_factor(input, pos);
+            }
+            Some(Token::Minus) => {
+                *pos += 1;
+                let f = parse_factor(input, pos)?;
+                return Ok(Node::Sub(Box::new(Node::Num(0)), Box::new(f)));
+            }
+            _ => {
+                return parse_factor(input, pos);
+            }
+        }
+    }
+
     fn parse_term(input: &[Token], pos: &mut usize) -> Result<Node, String> {
-        let mut f = parse_factor(input, pos)?;
+        let mut f = parse_unary(input, pos)?;
         loop {
             match input.get(*pos) {
                 Some(Token::Mult) => {
                     *pos += 1;
-                    let f2 = parse_factor(input, pos)?;
+                    let f2 = parse_unary(input, pos)?;
                     f = Node::Mul(Box::new(f), Box::new(f2));
                 }
                 Some(Token::Div) => {
                     *pos += 1;
-                    let f2 = parse_factor(input, pos)?;
+                    let f2 = parse_unary(input, pos)?;
                     f = Node::Div(Box::new(f), Box::new(f2));
                 }
                 None => {
@@ -272,14 +289,6 @@ mod parser {
         fn parse_trailing_operator() {
             // "1 +"
             let input = vec![Token::Num(1), Token::Plus];
-
-            assert!(parse(&input).is_err());
-        }
-
-        #[test]
-        fn parse_leading_operator() {
-            // "+ 1"
-            let input = vec![Token::Plus, Token::Num(1)];
 
             assert!(parse(&input).is_err());
         }
