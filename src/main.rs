@@ -1,11 +1,5 @@
 use std::process::ExitCode;
 
-enum LexState {
-    Def,
-    Plus,
-    Minus,
-}
-
 mod lexer {
 
     #[derive(Debug, PartialEq, Eq, Clone)]
@@ -17,6 +11,12 @@ mod lexer {
         Div,
         ParL,
         ParR,
+        Eq,
+        Neq,
+        Gt,
+        Geq,
+        Lt,
+        Leq,
     }
 
     pub fn lex(input: &str) -> Result<Vec<Token>, String> {
@@ -64,6 +64,46 @@ mod lexer {
                     v.push(Token::ParR);
                     pos += 1;
                 }
+                b'>' => match input.get(pos + 1) {
+                    Some(b'=') => {
+                        v.push(Token::Geq);
+                        pos += 2;
+                    }
+                    _ => {
+                        v.push(Token::Gt);
+                        pos += 1;
+                    }
+                },
+                b'<' => match input.get(pos + 1) {
+                    Some(b'=') => {
+                        v.push(Token::Leq);
+                        pos += 2;
+                    }
+                    _ => {
+                        v.push(Token::Lt);
+                        pos += 1;
+                    }
+                },
+                b'=' => match input.get(pos + 1) {
+                    Some(b'=') => {
+                        v.push(Token::Eq);
+                        pos += 2;
+                    }
+                    _ => {
+                        eprintln!("Invalid Character at {}", pos);
+                        return Err(format!("Invalid Character at {}", pos));
+                    }
+                },
+                b'!' => match input.get(pos + 1) {
+                    Some(b'=') => {
+                        v.push(Token::Neq);
+                        pos += 2;
+                    }
+                    _ => {
+                        eprintln!("Invalid Character at {}", pos);
+                        return Err(format!("Invalid Character at {}", pos));
+                    }
+                },
                 _ => {
                     eprintln!("Invalid Character at {}", pos);
                     return Err(format!("Invalid Character at {}", pos));
@@ -115,6 +155,10 @@ mod parser {
         Sub(Box<Node>, Box<Node>),
         Mul(Box<Node>, Box<Node>),
         Div(Box<Node>, Box<Node>),
+        Leq(Box<Node>, Box<Node>),
+        Lt(Box<Node>, Box<Node>),
+        Eq(Box<Node>, Box<Node>),
+        Neq(Box<Node>, Box<Node>),
         Num(u64),
     }
 
@@ -126,7 +170,7 @@ mod parser {
             }
             Some(Token::ParL) => {
                 *pos += 1;
-                let e = parse_expr(input, pos)?;
+                let e = parse_add(input, pos)?;
                 match input.get(*pos) {
                     Some(Token::ParR) => {
                         *pos += 1;
@@ -166,7 +210,7 @@ mod parser {
         }
     }
 
-    fn parse_term(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+    fn parse_mul(input: &[Token], pos: &mut usize) -> Result<Node, String> {
         let mut f = parse_unary(input, pos)?;
         loop {
             match input.get(*pos) {
@@ -191,18 +235,18 @@ mod parser {
         Ok(f)
     }
 
-    fn parse_expr(input: &[Token], pos: &mut usize) -> Result<Node, String> {
-        let mut t = parse_term(input, pos)?;
+    fn parse_add(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+        let mut t = parse_mul(input, pos)?;
         loop {
             match input.get(*pos) {
                 Some(Token::Plus) => {
                     *pos += 1;
-                    let t2 = parse_term(input, pos)?;
+                    let t2 = parse_mul(input, pos)?;
                     t = Node::Add(Box::new(t), Box::new(t2));
                 }
                 Some(Token::Minus) => {
                     *pos += 1;
-                    let t2 = parse_term(input, pos)?;
+                    let t2 = parse_mul(input, pos)?;
                     t = Node::Sub(Box::new(t), Box::new(t2));
                 }
                 None => {
@@ -214,6 +258,66 @@ mod parser {
             }
         }
         Ok(t)
+    }
+
+    fn parse_cmp(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+        let mut lhs = parse_add(input, pos)?;
+        loop {
+            match input.get(*pos) {
+                Some(Token::Geq) => {
+                    *pos += 1;
+                    let rhs = parse_add(input, pos)?;
+                    lhs = Node::Leq(Box::new(rhs), Box::new(lhs));
+                }
+                Some(Token::Gt) => {
+                    *pos += 1;
+                    let rhs = parse_add(input, pos)?;
+                    lhs = Node::Lt(Box::new(rhs), Box::new(lhs));
+                }
+                Some(Token::Leq) => {
+                    *pos += 1;
+                    let rhs = parse_add(input, pos)?;
+                    lhs = Node::Leq(Box::new(lhs), Box::new(rhs));
+                }
+                Some(Token::Lt) => {
+                    *pos += 1;
+                    let rhs = parse_add(input, pos)?;
+                    lhs = Node::Lt(Box::new(lhs), Box::new(rhs));
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        Ok(lhs)
+    }
+
+    fn parse_eq(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+        let mut lhs = parse_cmp(input, pos)?;
+        loop {
+            match input.get(*pos) {
+                Some(Token::Eq) => {
+                    *pos += 1;
+                    let rhs = parse_cmp(input, pos)?;
+                    lhs = Node::Eq(Box::new(lhs), Box::new(rhs));
+                }
+                Some(Token::Neq) => {
+                    *pos += 1;
+                    let rhs = parse_cmp(input, pos)?;
+                    lhs = Node::Neq(Box::new(lhs), Box::new(rhs));
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        Ok(lhs)
+    }
+
+    fn parse_expr(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+        parse_eq(input, pos)
     }
 
     pub fn parse(input: &[Token]) -> Result<Node, String> {
@@ -276,6 +380,15 @@ mod parser {
                 Box::new(Node::Mul(Box::new(Node::Num(4)), Box::new(Node::Num(3)))),
             );
             assert_eq!(parse(&input), Ok(expected));
+        }
+
+        #[test]
+        fn parse_gt() {
+            let input = vec![Token::Num(2), Token::Lt, Token::Num(3)];
+
+            let expected = Node::Lt(Box::new(Node::Num(2)), Box::new(Node::Num(3)));
+
+            assert_eq!(expected, parse(&input).unwrap());
         }
 
         #[test]
@@ -386,6 +499,45 @@ mod codegen {
                 println!("addi sp,sp,16");
                 println!("ld t0,0(sp)");
                 println!("div t0,t0,t1");
+                println!("sd t0,0(sp)");
+            }
+            Node::Lt(l, r) => {
+                generate(l);
+                generate(r);
+                println!("ld t1,0(sp)");
+                println!("addi sp,sp,16");
+                println!("ld t0,0(sp)");
+                println!("slt t0,t0,t1");
+                println!("sd t0,0(sp)");
+            }
+            Node::Leq(l, r) => {
+                generate(l);
+                generate(r);
+                println!("ld t1,0(sp)");
+                println!("addi sp,sp,16");
+                println!("ld t0,0(sp)");
+                println!("slt t0,t1,t0");
+                println!("xori t0,t0,1");
+                println!("sd t0,0(sp)");
+            }
+            Node::Eq(l, r) => {
+                generate(l);
+                generate(r);
+                println!("ld t1,0(sp)");
+                println!("addi sp,sp,16");
+                println!("ld t0,0(sp)");
+                println!("sub t0,t0,t1");
+                println!("seqz t0,t0");
+                println!("sd t0,0(sp)");
+            }
+            Node::Neq(l, r) => {
+                generate(l);
+                generate(r);
+                println!("ld t1,0(sp)");
+                println!("addi sp,sp,16");
+                println!("ld t0,0(sp)");
+                println!("sub t0,t0,t1");
+                println!("snez t0,t0");
                 println!("sd t0,0(sp)");
             }
             Node::Num(n) => {
