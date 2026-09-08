@@ -10,13 +10,16 @@
 ## Grammar
 
 ```ebnf
-expr   = eq ;
+prog   = stmt* ;
+stmt   = expr, ";" ;
+expr   = assign ;
+assign = eq ("=", assign)?;
 eq     = cmp, (("==" | "!="), cmp)* ;
 cmp    = add, ((">" | ">=" | "<" | "<="), add)* ;
 add    = mul, { ("+" | "-"), mul } ;
 mul    = unary, { ("*" | "/"), unary } ;
 unary  = ("+" | "-")?, factor ;
-factor = number | "(", expr, ")" ;
+factor = number | ident | "(", expr, ")" ;
 number = digit, { digit } ;
 digit  = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 ident  = [a-z A-Z], [a-z A-Z 0-9]*;

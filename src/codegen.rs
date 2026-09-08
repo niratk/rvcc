@@ -83,5 +83,14 @@ pub fn generate(ast: &Node) {
             println!("li t0,{}", n);
             println!("sd t0,0(sp)");
         }
+        Node::Assign(l, r) => {
+            //
+        }
+        Node::Id(s) => {
+            //
+        }
+        Node::Prog(v) => {
+            //
+        }
     }
 }

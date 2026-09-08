@@ -15,6 +15,7 @@ pub enum Token {
     Leq,
     Id(String),
     Assign,
+    Semi,
 }
 
 pub fn lex(input: &str) -> Result<Vec<Token>, String> {
@@ -115,6 +116,10 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                 }
                 _ => return invalid_character(pos),
             },
+            b';' => {
+                tokens.push(Token::Semi);
+                pos += 1;
+            }
             _ => return invalid_character(pos),
         }
     }

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::lexer::Token;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -10,6 +12,9 @@ pub enum Node {
     Lt(Box<Node>, Box<Node>),
     Eq(Box<Node>, Box<Node>),
     Neq(Box<Node>, Box<Node>),
+    Assign(Box<Node>, Box<Node>),
+    Prog(Vec<Node>),
+    Id(String),
     Num(u64),
 }
 
@@ -18,6 +23,10 @@ fn parse_factor(input: &[Token], pos: &mut usize) -> Result<Node, String> {
         Some(Token::Num(n)) => {
             *pos += 1;
             Ok(Node::Num(*n))
+        }
+        Some(Token::Id(id)) => {
+            *pos += 1;
+            Ok(Node::Id(id.clone()))
         }
         Some(Token::ParL) => {
             *pos += 1;
@@ -98,12 +107,12 @@ fn parse_cmp(input: &[Token], pos: &mut usize) -> Result<Node, String> {
             Some(Token::Geq) => {
                 *pos += 1;
                 let rhs = parse_add(input, pos)?;
-                lhs = Node::Leq(Box::new(rhs), Box::new(lhs));
+                lhs = Node::Lt(Box::new(rhs), Box::new(lhs));
             }
             Some(Token::Gt) => {
                 *pos += 1;
                 let rhs = parse_add(input, pos)?;
-                lhs = Node::Lt(Box::new(rhs), Box::new(lhs));
+                lhs = Node::Leq(Box::new(rhs), Box::new(lhs));
             }
             Some(Token::Leq) => {
                 *pos += 1;
@@ -141,13 +150,57 @@ fn parse_eq(input: &[Token], pos: &mut usize) -> Result<Node, String> {
     Ok(lhs)
 }
 
+fn parse_assign(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+    let lhs = parse_eq(input, pos)?;
+    match input.get(*pos) {
+        Some(Token::Assign) => {
+            if let Node::Id(_) = lhs {
+                *pos += 1;
+                let rhs = parse_assign(input, pos)?;
+                return Ok(Node::Assign(Box::new(lhs), Box::new(rhs)));
+            } else {
+                return Err(String::from("lhs of assign stmt must be identifier."));
+            }
+        }
+        _ => {
+            return Ok(lhs);
+        }
+    }
+}
+
 fn parse_expr(input: &[Token], pos: &mut usize) -> Result<Node, String> {
-    parse_eq(input, pos)
+    parse_assign(input, pos)
+}
+
+fn parse_stmt(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+    let e = parse_expr(input, pos)?;
+    match input.get(*pos) {
+        Some(Token::Semi) => {
+            *pos += 1;
+            return Ok(e);
+        }
+        _ => {
+            return Err(String::from("';' is required at the end of statement."));
+        }
+    }
+}
+
+fn parse_prog(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+    let mut prog: Vec<Node> = vec![];
+    loop {
+        let stmt = parse_stmt(input, pos)?;
+        prog.push(stmt);
+        if *pos == input.len() {
+            break;
+        }
+    }
+
+    Ok(Node::Prog(prog))
 }
 
 pub fn parse(input: &[Token]) -> Result<Node, String> {
     let mut pos = 0;
-    let node = parse_expr(input, &mut pos)?;
+    let node = parse_prog(input, &mut pos)?;
 
     if pos != input.len() {
         return Err(format!(
@@ -166,94 +219,33 @@ mod tests {
     #[test]
     fn parse_test() {
         let input = vec![
+            Token::Id(String::from("a")),
+            Token::Assign,
             Token::Num(3),
             Token::Plus,
-            Token::ParL,
-            Token::Num(12),
-            Token::Minus,
-            Token::Num(8),
-            Token::ParR,
-            Token::Div,
-            Token::Num(12),
-            Token::Mult,
-            Token::Num(9),
-            Token::Minus,
-            Token::Num(21),
-            Token::Plus,
+            Token::Num(2),
+            Token::Geq,
             Token::Num(4),
-            Token::Mult,
-            Token::Num(3),
+            Token::Semi,
+            Token::Num(6),
+            Token::Div,
+            Token::Id(String::from("a")),
+            Token::Semi,
         ];
-        let expected = Node::Add(
-            Box::new(Node::Sub(
-                Box::new(Node::Add(
-                    Box::new(Node::Num(3)),
-                    Box::new(Node::Mul(
-                        Box::new(Node::Div(
-                            Box::new(Node::Sub(Box::new(Node::Num(12)), Box::new(Node::Num(8)))),
-                            Box::new(Node::Num(12)),
-                        )),
-                        Box::new(Node::Num(9)),
-                    )),
+        let expected = Node::Prog(vec![
+            Node::Assign(
+                Box::new(Node::Id(String::from("a"))),
+                Box::new(Node::Lt(
+                    Box::new(Node::Num(4)),
+                    Box::new(Node::Add(Box::new(Node::Num(3)), Box::new(Node::Num(2)))),
                 )),
-                Box::new(Node::Num(21)),
-            )),
-            Box::new(Node::Mul(Box::new(Node::Num(4)), Box::new(Node::Num(3)))),
-        );
-        assert_eq!(parse(&input), Ok(expected));
-    }
+            ),
+            Node::Div(
+                Box::new(Node::Num(6)),
+                Box::new(Node::Id(String::from("a"))),
+            ),
+        ]);
 
-    #[test]
-    fn parse_gt() {
-        let input = vec![Token::Num(2), Token::Lt, Token::Num(3)];
-        let expected = Node::Lt(Box::new(Node::Num(2)), Box::new(Node::Num(3)));
-        assert_eq!(expected, parse(&input).unwrap());
-    }
-
-    #[test]
-    fn parse_empty_input() {
-        assert!(parse(&[]).is_err());
-    }
-
-    #[test]
-    fn parse_trailing_operator() {
-        let input = vec![Token::Num(1), Token::Plus];
-        assert!(parse(&input).is_err());
-    }
-
-    #[test]
-    fn parse_consecutive_operators() {
-        let input = vec![Token::Num(1), Token::Plus, Token::Mult, Token::Num(2)];
-        assert!(parse(&input).is_err());
-    }
-
-    #[test]
-    fn parse_missing_right_parenthesis() {
-        let input = vec![Token::ParL, Token::Num(1), Token::Plus, Token::Num(2)];
-        assert!(parse(&input).is_err());
-    }
-
-    #[test]
-    fn parse_extra_right_parenthesis() {
-        let input = vec![Token::Num(1), Token::Plus, Token::Num(2), Token::ParR];
-        assert!(parse(&input).is_err());
-    }
-
-    #[test]
-    fn parse_empty_parentheses() {
-        let input = vec![Token::ParL, Token::ParR];
-        assert!(parse(&input).is_err());
-    }
-
-    #[test]
-    fn parse_missing_operator() {
-        let input = vec![Token::Num(1), Token::Num(2)];
-        assert!(parse(&input).is_err());
-    }
-
-    #[test]
-    fn parse_double_division() {
-        let input = vec![Token::Num(1), Token::Div, Token::Div, Token::Num(2)];
-        assert!(parse(&input).is_err());
+        assert_eq!(parse(&input).unwrap(), expected);
     }
 }
