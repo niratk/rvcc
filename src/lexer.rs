@@ -13,6 +13,7 @@ pub enum Token {
     Geq,
     Lt,
     Leq,
+    Id(String),
 }
 
 pub fn lex(input: &str) -> Result<Vec<Token>, String> {
@@ -35,6 +36,23 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                 tokens.push(Token::Num(num));
             }
             c if c.is_ascii_whitespace() => pos += 1,
+            c if c.is_ascii_alphabetic() => {
+                let start = pos;
+                pos += 1;
+                loop {
+                    match input.get(pos) {
+                        Some(c) if c.is_ascii_alphanumeric() => {
+                            pos += 1;
+                        }
+                        _ => {
+                            break;
+                        }
+                    }
+                }
+                tokens.push(Token::Id(
+                    String::from_utf8(input[start..pos].to_vec()).unwrap(),
+                ));
+            }
             b'+' => {
                 tokens.push(Token::Plus);
                 pos += 1;
@@ -111,8 +129,8 @@ mod tests {
 
     #[test]
     fn lex_test() {
-        let input = "3 + (12 - 8)/12*9-21 + 4* 3";
-        let input2 = "3a+10-0=0";
+        let input = "3 + (12 - 8)/12*9-21 + 4* 3 -a21a0+p";
+        let input2 = "3A+10-0==0";
         let expected = vec![
             Token::Num(3),
             Token::Plus,
@@ -131,8 +149,22 @@ mod tests {
             Token::Num(4),
             Token::Mult,
             Token::Num(3),
+            Token::Minus,
+            Token::Id(String::from("a21a0")),
+            Token::Plus,
+            Token::Id(String::from("p")),
+        ];
+        let expected2 = vec![
+            Token::Num(3),
+            Token::Id(String::from("A")),
+            Token::Plus,
+            Token::Num(10),
+            Token::Minus,
+            Token::Num(0),
+            Token::Eq,
+            Token::Num(0),
         ];
         assert_eq!(lex(input), Ok(expected));
-        assert_eq!(lex(input2), Err(String::from("Invalid Character at 1")));
+        assert_eq!(lex(input2), Ok(expected2));
     }
 }
