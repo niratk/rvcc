@@ -14,6 +14,7 @@ pub enum Token {
     Lt,
     Leq,
     Id(String),
+    Assign,
 }
 
 pub fn lex(input: &str) -> Result<Vec<Token>, String> {
@@ -102,7 +103,10 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                     tokens.push(Token::Eq);
                     pos += 2;
                 }
-                _ => return invalid_character(pos),
+                _ => {
+                    tokens.push(Token::Assign);
+                    pos += 1;
+                }
             },
             b'!' => match input.get(pos + 1) {
                 Some(b'=') => {
