@@ -126,7 +126,7 @@ fn generate_node(ast: &Node, map: &mut IdAddrMap) {
             if let Node::Id(s) = l.as_ref() {
                 let ofs = map.get_ofs(s.clone());
                 println!("ld t0,0(sp)");
-                println!("sd t0,-{}(s0)", ofs); // pre-allocated memory region for variables
+                println!("sd t0,-{}(s0)", ofs); // pre-allocated memory region for variables, base=s0.
             // return value is rhs, so we do not change sp.
             } else {
                 panic!("Error");
