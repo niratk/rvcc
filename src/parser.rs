@@ -30,7 +30,7 @@ fn parse_factor(input: &[Token], pos: &mut usize) -> Result<Node, String> {
         }
         Some(Token::ParL) => {
             *pos += 1;
-            let expr = parse_add(input, pos)?;
+            let expr = parse_expr(input, pos)?;
             match input.get(*pos) {
                 Some(Token::ParR) => {
                     *pos += 1;
