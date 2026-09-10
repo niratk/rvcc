@@ -2,11 +2,79 @@ use std::collections::HashMap;
 
 use crate::parser::Node;
 
+fn traverse_ast_and_alloc_idofs(ast: &Node, map: &mut IdAddrMap) {
+    match ast {
+        Node::Id(s) => {
+            map.get_ofs(s.clone());
+        }
+        Node::Num(_) => {}
+        Node::Add(l, r)
+        | Node::Sub(l, r)
+        | Node::Mul(l, r)
+        | Node::Div(l, r)
+        | Node::Leq(l, r)
+        | Node::Lt(l, r)
+        | Node::Eq(l, r)
+        | Node::Neq(l, r)
+        | Node::Assign(l, r) => {
+            traverse_ast_and_alloc_idofs(l, map);
+            traverse_ast_and_alloc_idofs(r, map);
+        }
+        Node::Prog(nodes) => {
+            for node in nodes {
+                traverse_ast_and_alloc_idofs(node, map);
+            }
+        }
+    }
+}
+
+fn generate_prologue(frame: &StackFrame) {
+    println!(".globl main");
+    println!("main:");
+    println!("addi sp,sp,-{}", frame.size);
+    println!("sd ra,{}(sp)", frame.size - 8);
+    println!("sd s0,{}(sp)", frame.size - 16);
+    println!("addi s0,sp,{}", frame.size);
+    println!("sw a0,-20(s0)");
+    println!("sd a1,-32(s0)");
+}
+
+fn generate_epilogue(frame: &StackFrame) {
+    println!("ld a5,0(sp)");
+    println!("addi sp,sp,16");
+    println!("mv a0,a5");
+    println!("ld ra,{}(sp)", frame.size - 8);
+    println!("ld s0,{}(sp)", frame.size - 16);
+    println!("addi sp,sp,{}", frame.size);
+    println!("jr ra");
+}
+
 pub fn generate(ast: &Node) {
-    let mut map = IdAddrMap::new();
-    generate_node(ast, &mut map);
+    let mut frame = StackFrame::new(ast);
+    generate_prologue(&frame);
+    generate_node(ast, &mut frame.id_addr_map);
     // for return value.(temporary)
     println!("addi sp,sp,-16");
+    generate_epilogue(&frame);
+}
+
+struct StackFrame {
+    id_addr_map: IdAddrMap,
+    size: u64,
+}
+
+impl StackFrame {
+    fn new(ast: &Node) -> Self {
+        const BASE_FRAME_SIZE: u64 = 32;
+        const STACK_ALIGNMENT: u64 = 16;
+
+        let mut id_addr_map = IdAddrMap::new();
+        traverse_ast_and_alloc_idofs(ast, &mut id_addr_map);
+        let required_size = id_addr_map.next_ofs.saturating_sub(8).max(BASE_FRAME_SIZE);
+        let size = required_size.div_ceil(STACK_ALIGNMENT) * STACK_ALIGNMENT;
+
+        Self { id_addr_map, size }
+    }
 }
 
 struct IdAddrMap {
@@ -17,8 +85,8 @@ struct IdAddrMap {
 impl IdAddrMap {
     pub fn new() -> Self {
         Self {
-            // if stack grows too long so that reaches this beginning ofs, this will break. We should improve this.
-            next_ofs: 1600,
+            // the first variable is at -40(s0)
+            next_ofs: 40,
             map: HashMap::new(),
         }
     }

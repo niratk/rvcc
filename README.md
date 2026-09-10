@@ -25,6 +25,59 @@ digit  = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 ident  = [a-z A-Z], [a-z A-Z 0-9]*;
 ```
 
+## Example
+
+```c
+x = 3;
+y = 5;
+x + y * 2;
+```
+
+This program returns `13` from `main`.
+
+## Stack Frame Explained
+
+after prologue
+
+```
+高アドレス
+元のsp → +----------------+
+          | 呼び出し元     |
+s0     → +----------------+
+          | 保存ra  8byte | -8(s0)
+          | 保存s0  8byte | -16(s0)
+          | argc    4byte | -20(s0)
+          | 空き    4byte |
+sp     → | argv    8byte | -32(s0)
+          +----------------+
+低アドレス
+```
+
+after allocating space for scope variables (planned)
+
+```
+高アドレス
+元のsp → +----------------+ ← s0
+          | 呼び出し元     |
+          +----------------+
+          | 保存ra  8byte | -8(s0)
+          | 保存s0  8byte | -16(s0)
+          | argc    4byte | -20(s0)
+          | 空き    4byte |
+          | argv    8byte | -32(s0)
+          +----------------+
+          | var[0]  8byte |
+          | var[1]  8byte |
+          |      ...       |
+          | var[n-1] 8byte|
+sp     → +----------------+
+低アドレス
+```
+
+## Todo
+
+(WIP)
+
 ## Limitation
 
 - This is an expression compiler rather than a complete C compiler. It only
@@ -35,15 +88,12 @@ ident  = [a-z A-Z], [a-z A-Z 0-9]*;
 - Variables are implicitly created on first use, have no scope, and hold
   64-bit integer values. Reading a variable before assigning to it produces an
   undefined value.
-- Variable storage uses fixed offsets from the stack frame without reserving
-  the corresponding stack space. Programs with many variables or deeply
-  nested expressions may corrupt the stack, and sufficiently large variable
-  offsets cannot be encoded by the generated instructions.
 - Integer overflow and division by zero are not diagnosed.
 - Invalid input is reported by a panic rather than a user-friendly compiler
   diagnostic.
 - The generated assembly targets 64-bit RISC-V and currently emits only a
   `main` function whose return value is the value of the final statement.
+- risc-v immidiate offset (e.g.`12(s0)`) is limited to 12 bits. we ignore this for now (we need to calculate address with register for larger frames, but we ignore this for now.)
 
 ## Reference
 
