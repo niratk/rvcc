@@ -16,6 +16,7 @@ pub enum Token {
     Id(String),
     Assign,
     Semi,
+    Return,
 }
 
 pub fn lex(input: &str) -> Result<Vec<Token>, String> {
@@ -51,9 +52,12 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                         }
                     }
                 }
-                tokens.push(Token::Id(
-                    String::from_utf8(input[start..pos].to_vec()).unwrap(),
-                ));
+                let ident = &input[start..pos];
+                if ident == b"return" {
+                    tokens.push(Token::Return);
+                } else {
+                    tokens.push(Token::Id(String::from_utf8(ident.to_vec()).unwrap()));
+                }
             }
             b'+' => {
                 tokens.push(Token::Plus);
@@ -139,7 +143,7 @@ mod tests {
     #[test]
     fn lex_test() {
         let input = "3 + (12 - 8)/12*9-21 + 4* 3 -a21a0+p";
-        let input2 = "3A+10-0==0";
+        let input2 = "a = 3A+10-0==0; return a;";
         let expected = vec![
             Token::Num(3),
             Token::Plus,
@@ -164,6 +168,8 @@ mod tests {
             Token::Id(String::from("p")),
         ];
         let expected2 = vec![
+            Token::Id(String::from("a")),
+            Token::Assign,
             Token::Num(3),
             Token::Id(String::from("A")),
             Token::Plus,
@@ -172,6 +178,10 @@ mod tests {
             Token::Num(0),
             Token::Eq,
             Token::Num(0),
+            Token::Semi,
+            Token::Return,
+            Token::Id(String::from("a")),
+            Token::Semi,
         ];
         assert_eq!(lex(input), Ok(expected));
         assert_eq!(lex(input2), Ok(expected2));

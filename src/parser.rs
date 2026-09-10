@@ -16,6 +16,7 @@ pub enum Node {
     Prog(Vec<Node>),
     Id(String),
     Num(u64),
+    Return(Box<Node>),
 }
 
 fn parse_factor(input: &[Token], pos: &mut usize) -> Result<Node, String> {
@@ -173,16 +174,23 @@ fn parse_expr(input: &[Token], pos: &mut usize) -> Result<Node, String> {
 }
 
 fn parse_stmt(input: &[Token], pos: &mut usize) -> Result<Node, String> {
-    let e = parse_expr(input, pos)?;
-    match input.get(*pos) {
-        Some(Token::Semi) => {
-            *pos += 1;
-            return Ok(e);
-        }
-        _ => {
-            return Err(String::from("';' is required at the end of statement."));
-        }
+    let is_return_stmt = matches!(input.get(*pos), Some(Token::Return));
+    if is_return_stmt {
+        *pos += 1;
     }
+
+    let expr = parse_expr(input, pos)?;
+
+    if !matches!(input.get(*pos), Some(Token::Semi)) {
+        return Err(String::from("';' is required at the end of statement."));
+    }
+    *pos += 1;
+
+    Ok(if is_return_stmt {
+        Node::Return(Box::new(expr))
+    } else {
+        expr
+    })
 }
 
 fn parse_prog(input: &[Token], pos: &mut usize) -> Result<Node, String> {
@@ -231,6 +239,9 @@ mod tests {
             Token::Div,
             Token::Id(String::from("a")),
             Token::Semi,
+            Token::Return,
+            Token::Id(String::from("a")),
+            Token::Semi,
         ];
         let expected = Node::Prog(vec![
             Node::Assign(
@@ -244,6 +255,7 @@ mod tests {
                 Box::new(Node::Num(6)),
                 Box::new(Node::Id(String::from("a"))),
             ),
+            Node::Return(Box::new(Node::Id(String::from("a")))),
         ]);
 
         assert_eq!(parse(&input).unwrap(), expected);

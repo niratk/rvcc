@@ -11,7 +11,7 @@
 
 ```ebnf
 prog   = stmt* ;
-stmt   = expr, ";" ;
+stmt   = "return"?, expr, ";" ;
 expr   = assign ;
 assign = eq ("=", assign)?;
 eq     = cmp, (("==" | "!="), cmp)* ;
@@ -30,7 +30,7 @@ ident  = [a-z A-Z], [a-z A-Z 0-9]*;
 ```c
 x = 3;
 y = 5;
-x + y * 2;
+return x + y * 2;
 ```
 
 This program returns `13` from `main`.
@@ -76,7 +76,13 @@ sp     → +----------------+
 
 ## Todo
 
-(WIP)
+- [x] return keyword support
+    - [x] duplicate implicit return value
+- [ ] control syntax support
+    - [ ] if, else, while, for
+    - [ ] (defer do...while, goto, continue, break)
+- [ ] block support
+- [ ] fn support
 
 ## Limitation
 

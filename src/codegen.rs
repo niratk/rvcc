@@ -8,6 +8,9 @@ fn traverse_ast_and_alloc_idofs(ast: &Node, map: &mut IdAddrMap) {
             map.get_ofs(s.clone());
         }
         Node::Num(_) => {}
+        Node::Return(e) => {
+            traverse_ast_and_alloc_idofs(e, map);
+        }
         Node::Add(l, r)
         | Node::Sub(l, r)
         | Node::Mul(l, r)
@@ -40,9 +43,6 @@ fn generate_prologue(frame: &StackFrame) {
 }
 
 fn generate_epilogue(frame: &StackFrame) {
-    println!("ld a5,0(sp)");
-    println!("addi sp,sp,16");
-    println!("mv a0,a5");
     println!("ld ra,{}(sp)", frame.size - 8);
     println!("ld s0,{}(sp)", frame.size - 16);
     println!("addi sp,sp,{}", frame.size);
@@ -53,8 +53,6 @@ pub fn generate(ast: &Node) {
     let mut frame = StackFrame::new(ast);
     generate_prologue(&frame);
     generate_node(ast, &mut frame.id_addr_map);
-    // for return value.(temporary)
-    println!("addi sp,sp,-16");
     generate_epilogue(&frame);
 }
 
@@ -200,6 +198,11 @@ fn generate_node(ast: &Node, map: &mut IdAddrMap) {
                 panic!("Error");
             }
         }
+        Node::Return(e) => {
+            generate_node(e, map);
+            println!("ld a0,0(sp)");
+            println!("addi sp,sp,16");
+        }
         Node::Id(s) => {
             // accept uninitialized identifier, value is undefined.
             let ofs = map.get_ofs(s.clone());
@@ -210,8 +213,12 @@ fn generate_node(ast: &Node, map: &mut IdAddrMap) {
         Node::Prog(v) => {
             for node in v {
                 generate_node(node, map);
-                // discard return value (the value is saved unless overwrite.)
-                println!("addi sp,sp,16");
+                if matches!(node, Node::Return(_)) {
+                    break;
+                } else {
+                    // discard calc result at the top of the stack (the value is saved unless overwrite.)
+                    println!("addi sp,sp,16");
+                }
             }
         }
     }

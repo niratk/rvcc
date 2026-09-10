@@ -16,8 +16,9 @@ assert() {
   fi
 }
 
-assert 0 "3 - 3;"
-assert 12 "a=12;a;"
-assert 50 "a = 23; b = 3 + 5 * 2; c = b + (a + b > a); a + b + c;"
+assert 0 "return 3 - 3;"
+assert 12 "a=12;return a;"
+assert 50 "a = 23; b = 3 + 5 * 2; c = b + (a + b > a); return a + b + c;"
+assert 23 "a = 23; return 23; b = 3 + 5 * 2; c = b + (a + b > a); return a + b + c;"
 
 echo OK
