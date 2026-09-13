@@ -205,4 +205,61 @@ mod tests {
         assert_eq!(lex(input), Ok(expected));
         assert_eq!(lex(input2), Ok(expected2));
     }
+
+    #[test]
+    fn lex_control_flow_statements() {
+        let input = "if (a) return 1; else while (b) for (i = 0; i < 10; i = i + 1) a = a + i;";
+        let expected = vec![
+            Token::If,
+            Token::ParL,
+            Token::Id(String::from("a")),
+            Token::ParR,
+            Token::Return,
+            Token::Num(1),
+            Token::Semi,
+            Token::Else,
+            Token::While,
+            Token::ParL,
+            Token::Id(String::from("b")),
+            Token::ParR,
+            Token::For,
+            Token::ParL,
+            Token::Id(String::from("i")),
+            Token::Assign,
+            Token::Num(0),
+            Token::Semi,
+            Token::Id(String::from("i")),
+            Token::Lt,
+            Token::Num(10),
+            Token::Semi,
+            Token::Id(String::from("i")),
+            Token::Assign,
+            Token::Id(String::from("i")),
+            Token::Plus,
+            Token::Num(1),
+            Token::ParR,
+            Token::Id(String::from("a")),
+            Token::Assign,
+            Token::Id(String::from("a")),
+            Token::Plus,
+            Token::Id(String::from("i")),
+            Token::Semi,
+        ];
+
+        assert_eq!(lex(input), Ok(expected));
+    }
+
+    #[test]
+    fn lex_control_flow_prefixes_as_identifiers() {
+        let input = "iffy elsewhere while1 for2;";
+        let expected = vec![
+            Token::Id(String::from("iffy")),
+            Token::Id(String::from("elsewhere")),
+            Token::Id(String::from("while1")),
+            Token::Id(String::from("for2")),
+            Token::Semi,
+        ];
+
+        assert_eq!(lex(input), Ok(expected));
+    }
 }
