@@ -17,6 +17,10 @@ pub enum Token {
     Assign,
     Semi,
     Return,
+    If,
+    Else,
+    While,
+    For,
 }
 
 pub fn lex(input: &str) -> Result<Vec<Token>, String> {
@@ -53,10 +57,25 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                     }
                 }
                 let ident = &input[start..pos];
-                if ident == b"return" {
-                    tokens.push(Token::Return);
-                } else {
-                    tokens.push(Token::Id(String::from_utf8(ident.to_vec()).unwrap()));
+                match ident {
+                    b"return" => {
+                        tokens.push(Token::Return);
+                    }
+                    b"if" => {
+                        tokens.push(Token::If);
+                    }
+                    b"else" => {
+                        tokens.push(Token::Else);
+                    }
+                    b"while" => {
+                        tokens.push(Token::While);
+                    }
+                    b"for" => {
+                        tokens.push(Token::For);
+                    }
+                    _ => {
+                        tokens.push(Token::Id(String::from_utf8(ident.to_vec()).unwrap()));
+                    }
                 }
             }
             b'+' => {

@@ -11,7 +11,10 @@
 
 ```ebnf
 prog   = stmt* ;
-stmt   = "return"?, expr, ";" ;
+stmt   = ("return"?, expr, ";")
+         | ("if", "(", expr, ")", stmt, ("else", stmt)?)
+         | ("while", "(", expr, ")", stmt)
+         | ("for", "(", expr?, ";", expr? ";", expr? ")",stmt) ;
 expr   = assign ;
 assign = eq ("=", assign)?;
 eq     = cmp, (("==" | "!="), cmp)* ;
@@ -80,7 +83,12 @@ sp     → +----------------+
     - [x] duplicate implicit return value
 - [ ] control syntax support
     - [ ] if, else, while, for
-    - [ ] (defer do...while, goto, continue, break)
+        - [ ] lexer
+            - [ ] define new grammar
+            - [ ] mod lexer
+        - [ ] parser
+        - [ ] codegen
+    - [x] (defer do...while, goto, continue, break)
 - [ ] block support
 - [ ] fn support
 
