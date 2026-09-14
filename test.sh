@@ -36,5 +36,9 @@ assert 5 "if (0) return 3; else return 5;"
 assert 10 "i = 0; while (i < 10) i = i + 1; return i;"
 assert 55 "sum = 0; for (i = 0; i <= 10; i = i + 1) sum = sum + i; return sum;"
 assert 7 "for (;;) return 7;"
+assert 3 "a = 0; if (1) { a = 1; a = a + 2; } return a;"
+assert 10 "i = 0; sum = 0; while (i < 4) { i = i + 1; sum = sum + i; } return sum;"
+assert 6 "sum = 0; for (i = 0; i < 4; i = i + 1) { sum = sum + i; } return sum;"
+assert 2 "if (1) { if (0) { return 1; } else { return 2; } } return 3;"
 
 echo OK

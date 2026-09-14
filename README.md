@@ -14,7 +14,8 @@ prog   = stmt* ;
 stmt   = ("return"?, expr, ";")
          | ("if", "(", expr, ")", stmt, ("else", stmt)?)
          | ("while", "(", expr, ")", stmt)
-         | ("for", "(", expr?, ";", expr? ";", expr? ")",stmt) ;
+         | ("for", "(", expr?, ";", expr? ";", expr? ")",stmt)
+         | ("{", stmt*, "}") ;
 expr   = assign ;
 assign = eq ("=", assign)?;
 eq     = cmp, (("==" | "!="), cmp)* ;
@@ -91,7 +92,7 @@ sp     → +----------------+
             - [x] change generator to receive ctx, not frame nor map.
             - [x] impl
     - [x] (defer do...while, goto, continue, break)
-- [ ] block support
+- [x] block support
 - [ ] fn support
 
 ## Limitation

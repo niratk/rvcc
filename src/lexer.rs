@@ -7,6 +7,8 @@ pub enum Token {
     Div,
     ParL,
     ParR,
+    BraceL,
+    BraceR,
     Eq,
     Neq,
     Gt,
@@ -100,6 +102,14 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             }
             b')' => {
                 tokens.push(Token::ParR);
+                pos += 1;
+            }
+            b'{' => {
+                tokens.push(Token::BraceL);
+                pos += 1;
+            }
+            b'}' => {
+                tokens.push(Token::BraceR);
                 pos += 1;
             }
             b'>' => match input.get(pos + 1) {
@@ -261,5 +271,19 @@ mod tests {
         ];
 
         assert_eq!(lex(input), Ok(expected));
+    }
+
+    #[test]
+    fn lex_braces() {
+        assert_eq!(
+            lex("{ return 1; }"),
+            Ok(vec![
+                Token::BraceL,
+                Token::Return,
+                Token::Num(1),
+                Token::Semi,
+                Token::BraceR,
+            ])
+        );
     }
 }

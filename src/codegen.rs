@@ -40,7 +40,7 @@ fn traverse_ast_and_alloc_idofs(ast: &Node, map: &mut IdAddrMap) {
             traverse_ast_and_alloc_idofs(l, map);
             traverse_ast_and_alloc_idofs(r, map);
         }
-        Node::Prog(nodes) => {
+        Node::Prog(nodes) | Node::Block(nodes) => {
             for node in nodes {
                 traverse_ast_and_alloc_idofs(node, map);
             }
@@ -287,6 +287,14 @@ fn generate_node(ast: &Node, ctx: &mut CodegenContext) {
                 }
             }
         }
+        Node::Block(v) => {
+            for node in v {
+                generate_node(node, ctx);
+                println!("addi sp,sp,16");
+            }
+            println!("addi sp,sp,-16");
+            println!("sd zero,0(sp)");
+        }
         Node::If(cond, stmt) => {
             let label_id = ctx.get_new_label();
             generate_node(cond, ctx);
@@ -403,5 +411,17 @@ mod tests {
 
         assert!(assembly.contains("ld a0,0(sp)\naddi sp,sp,16\nj .Lreturn\n"));
         assert!(assembly.contains(".Lreturn:\n"));
+    }
+
+    #[test]
+    fn generate_compound_statement() {
+        let assembly = generate_source(
+            "a = 0; if (1) { a = 1; a = a + 2; } while (a < 5) { a = a + 1; } return a;",
+        );
+
+        assert!(assembly.contains("beqz t0,.Lendif0\n"));
+        assert!(assembly.contains(".Lbegin1:\n"));
+        assert!(assembly.contains("beqz t0,.Lend2\n"));
+        assert!(assembly.contains("j .Lbegin1\n"));
     }
 }

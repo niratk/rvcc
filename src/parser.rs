@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::lexer::Token;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -14,6 +12,7 @@ pub enum Node {
     Neq(Box<Node>, Box<Node>),
     Assign(Box<Node>, Box<Node>),
     Prog(Vec<Node>),
+    Block(Vec<Node>),
     Id(String),
     Num(u64),
     Return(Box<Node>),
@@ -184,6 +183,21 @@ fn parse_expr(input: &[Token], pos: &mut usize) -> Result<Node, String> {
 
 fn parse_stmt(input: &[Token], pos: &mut usize) -> Result<Node, String> {
     match input.get(*pos) {
+        Some(Token::BraceL) => {
+            *pos += 1;
+            let mut stmts = Vec::new();
+
+            loop {
+                match input.get(*pos) {
+                    Some(Token::BraceR) => {
+                        *pos += 1;
+                        return Ok(Node::Block(stmts));
+                    }
+                    None => return Err(String::from("Unexpected EOF. '}' is expected.")),
+                    _ => stmts.push(parse_stmt(input, pos)?),
+                }
+            }
+        }
         Some(Token::If) => {
             *pos += 1;
             match input.get(*pos) {
@@ -504,5 +518,44 @@ mod tests {
         )]);
 
         assert_eq!(parse_source("for (;;) return 0;"), expected);
+    }
+
+    #[test]
+    fn parse_compound_statement() {
+        let expected = Node::Prog(vec![Node::If(
+            Box::new(Node::Id(String::from("condition"))),
+            Box::new(Node::Block(vec![
+                Node::Assign(
+                    Box::new(Node::Id(String::from("a"))),
+                    Box::new(Node::Num(1)),
+                ),
+                Node::Return(Box::new(Node::Id(String::from("a")))),
+            ])),
+        )]);
+
+        assert_eq!(
+            parse_source("if (condition) { a = 1; return a; }"),
+            expected
+        );
+    }
+
+    #[test]
+    fn parse_nested_and_empty_compound_statements() {
+        let expected = Node::Prog(vec![Node::Block(vec![
+            Node::Block(vec![]),
+            Node::Return(Box::new(Node::Num(1))),
+        ])]);
+
+        assert_eq!(parse_source("{ {} return 1; }"), expected);
+    }
+
+    #[test]
+    fn reject_unclosed_compound_statement() {
+        let tokens = crate::lexer::lex("{ return 1;").unwrap();
+
+        assert_eq!(
+            parse(&tokens),
+            Err(String::from("Unexpected EOF. '}' is expected."))
+        );
     }
 }
