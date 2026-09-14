@@ -81,13 +81,15 @@ sp     → +----------------+
 
 - [x] return keyword support
     - [x] duplicate implicit return value
-- [ ] control syntax support
-    - [ ] if, else, while, for
-        - [ ] lexer
-            - [ ] define new grammar
-            - [ ] mod lexer
-        - [ ] parser
-        - [ ] codegen
+- [x] control syntax support
+    - [x] if, else, while, for
+        - [x] lexer
+            - [x] define new grammar
+            - [x] mod lexer
+        - [x] parser
+        - [x] codegen
+            - [x] change generator to receive ctx, not frame nor map.
+            - [x] impl
     - [x] (defer do...while, goto, continue, break)
 - [ ] block support
 - [ ] fn support
