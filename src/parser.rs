@@ -25,8 +25,8 @@ pub enum Node {
         Option<Box<Node>>,
         Box<Node>,
     ),
-    Func(Box<Node>, Vec<Node>, Box<Node>),
-    Call(Box<Node>, Vec<Node>),
+    Func(String, Vec<String>, Box<Node>),
+    Call(String, Vec<Node>),
 }
 
 fn parse_factor(input: &[Token], pos: &mut usize) -> Result<Node, String> {
@@ -66,7 +66,7 @@ fn parse_factor(input: &[Token], pos: &mut usize) -> Result<Node, String> {
                             }
                         }
                     }
-                    Ok(Node::Call(Box::new(Node::Id(id.clone())), args))
+                    Ok(Node::Call(id.clone(), args))
                 }
                 _ => Ok(Node::Id(id.clone())),
             }
@@ -376,13 +376,12 @@ fn parse_stmt(input: &[Token], pos: &mut usize) -> Result<Node, String> {
     }
 }
 
-// now, pushing Node::Id as an params but this could be a problem.
 fn parse_func(input: &[Token], pos: &mut usize) -> Result<Node, String> {
     let fname;
     match input.get(*pos) {
         Some(Token::Id(id)) => {
             *pos += 1;
-            fname = Node::Id(id.clone());
+            fname = id.clone();
         }
         t => {
             return Err(format!("unexpected token: {:?}", t));
@@ -403,7 +402,7 @@ fn parse_func(input: &[Token], pos: &mut usize) -> Result<Node, String> {
         }
         Some(Token::Id(id)) => {
             *pos += 1;
-            params.push(Node::Id(id.clone()));
+            params.push(id.clone());
             loop {
                 match input.get(*pos) {
                     Some(Token::ParR) => {
@@ -415,7 +414,7 @@ fn parse_func(input: &[Token], pos: &mut usize) -> Result<Node, String> {
                         match input.get(*pos) {
                             Some(Token::Id(id)) => {
                                 *pos += 1;
-                                params.push(Node::Id(id.clone()));
+                                params.push(id.clone());
                             }
                             t => {
                                 return Err(format!("unexpected token: {:?}", t));
@@ -453,11 +452,7 @@ fn parse_func(input: &[Token], pos: &mut usize) -> Result<Node, String> {
         }
     }
 
-    Ok(Node::Func(
-        Box::new(fname),
-        params,
-        Box::new(Node::Block(stmts)),
-    ))
+    Ok(Node::Func(fname, params, Box::new(Node::Block(stmts))))
 }
 
 fn parse_prog(input: &[Token], pos: &mut usize) -> Result<Node, String> {
@@ -494,8 +489,8 @@ mod tests {
 
     fn func(name: &str, params: &[&str], stmts: Vec<Node>) -> Node {
         Node::Func(
-            Box::new(id(name)),
-            params.iter().map(|param| id(param)).collect(),
+            name.to_string(),
+            params.iter().map(|param| param.to_string()).collect(),
             Box::new(Node::Block(stmts)),
         )
     }
@@ -580,15 +575,15 @@ mod tests {
     #[test]
     fn parse_function_calls() {
         let expected = main_program(vec![
-            Node::Call(Box::new(id("start")), vec![]),
+            Node::Call("start".to_string(), vec![]),
             Node::Return(Box::new(Node::Add(
                 Box::new(Node::Num(1)),
                 Box::new(Node::Call(
-                    Box::new(id("add")),
+                    "add".to_string(),
                     vec![
                         Node::Num(2),
                         Node::Call(
-                            Box::new(id("mul")),
+                            "mul".to_string(),
                             vec![
                                 Node::Num(3),
                                 Node::Add(Box::new(Node::Num(4)), Box::new(Node::Num(5))),

@@ -68,7 +68,7 @@ fn traverse_ast_and_alloc_idofs(ast: &Node, map: &mut IdAddrMap) {
         }
         Node::Func(_, params, body) => {
             for param in params {
-                traverse_ast_and_alloc_idofs(param, map);
+                map.allocate(param);
             }
             traverse_ast_and_alloc_idofs(body, map);
         }
@@ -172,7 +172,6 @@ impl IdAddrMap {
     }
 }
 
-// Generate stack machine code. The code is generated in preorder of the AST.
 fn generate_node(ast: &Node, ctx: &mut CodegenContext) {
     match ast {
         Node::Add(l, r) => {
