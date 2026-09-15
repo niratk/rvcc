@@ -100,13 +100,13 @@ sp     → +----------------+
     - [x] (defer do...while, goto, continue, break)
 - [x] block support
 - [ ] fn support
-    - [ ] define the function syntax and AST
+    - [x] define the function syntax and AST
         - [x] add `,` to the lexer
-        - [ ] add `Func { name, params, body }` and `Call { name, args }` nodes
-        - [ ] change `Prog` from a list of statements to a list of functions
-        - [ ] parse function definitions with `prog = func*`
-        - [ ] parse parameter lists with `params = ident, { ",", ident }`
-        - [ ] parse function calls with `args = expr, { ",", expr }`
+        - [x] add `Func { name, params, body }` and `Call { name, args }` nodes
+        - [x] change `Prog` from a list of statements to a list of functions
+        - [x] parse function definitions with `prog = func*`
+        - [x] parse parameter lists with `params = ident, { ",", ident }`
+        - [x] parse function calls with `args = expr, { ",", expr }`
     - [ ] resolve function names and variable scopes before code generation
         - [ ] collect function signatures before code generation to support forward calls and recursion
         - [ ] reject duplicate function names, duplicate parameter names, and more than 8 parameters or arguments

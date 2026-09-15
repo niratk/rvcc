@@ -25,6 +25,8 @@ pub enum Node {
         Option<Box<Node>>,
         Box<Node>,
     ),
+    Func(Box<Node>, Vec<Node>, Box<Node>),
+    Call(Box<Node>, Vec<Node>),
 }
 
 fn parse_factor(input: &[Token], pos: &mut usize) -> Result<Node, String> {
@@ -35,7 +37,39 @@ fn parse_factor(input: &[Token], pos: &mut usize) -> Result<Node, String> {
         }
         Some(Token::Id(id)) => {
             *pos += 1;
-            Ok(Node::Id(id.clone()))
+            match input.get(*pos) {
+                Some(Token::ParL) => {
+                    *pos += 1;
+                    let mut args = vec![];
+                    match input.get(*pos) {
+                        Some(Token::ParR) => {
+                            *pos += 1;
+                        }
+                        _ => {
+                            let e = parse_expr(input, pos)?;
+                            args.push(e);
+                            loop {
+                                match input.get(*pos) {
+                                    Some(Token::ParR) => {
+                                        *pos += 1;
+                                        break;
+                                    }
+                                    Some(Token::Comma) => {
+                                        *pos += 1;
+                                        let e = parse_expr(input, pos)?;
+                                        args.push(e);
+                                    }
+                                    t => {
+                                        return Err(format!("unexpected token: {:?}", t));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Ok(Node::Call(Box::new(Node::Id(id.clone())), args))
+                }
+                _ => Ok(Node::Id(id.clone())),
+            }
         }
         Some(Token::ParL) => {
             *pos += 1;
@@ -342,14 +376,95 @@ fn parse_stmt(input: &[Token], pos: &mut usize) -> Result<Node, String> {
     }
 }
 
+// now, pushing Node::Id as an params but this could be a problem.
+fn parse_func(input: &[Token], pos: &mut usize) -> Result<Node, String> {
+    let fname;
+    match input.get(*pos) {
+        Some(Token::Id(id)) => {
+            *pos += 1;
+            fname = Node::Id(id.clone());
+        }
+        t => {
+            return Err(format!("unexpected token: {:?}", t));
+        }
+    }
+    match input.get(*pos) {
+        Some(Token::ParL) => {
+            *pos += 1;
+        }
+        t => {
+            return Err(format!("unexpected token: {:?}", t));
+        }
+    }
+    let mut params = vec![];
+    match input.get(*pos) {
+        Some(Token::ParR) => {
+            *pos += 1;
+        }
+        Some(Token::Id(id)) => {
+            *pos += 1;
+            params.push(Node::Id(id.clone()));
+            loop {
+                match input.get(*pos) {
+                    Some(Token::ParR) => {
+                        *pos += 1;
+                        break;
+                    }
+                    Some(Token::Comma) => {
+                        *pos += 1;
+                        match input.get(*pos) {
+                            Some(Token::Id(id)) => {
+                                *pos += 1;
+                                params.push(Node::Id(id.clone()));
+                            }
+                            t => {
+                                return Err(format!("unexpected token: {:?}", t));
+                            }
+                        }
+                    }
+                    t => {
+                        return Err(format!("unexpected token: {:?}", t));
+                    }
+                }
+            }
+        }
+        t => {
+            return Err(format!("unexpected token: {:?}", t));
+        }
+    }
+    match input.get(*pos) {
+        Some(Token::BraceL) => {
+            *pos += 1;
+        }
+        t => {
+            return Err(format!("unexpected token: {:?}", t));
+        }
+    }
+    let mut stmts = Vec::new();
+
+    loop {
+        match input.get(*pos) {
+            Some(Token::BraceR) => {
+                *pos += 1;
+                break;
+            }
+            None => return Err(String::from("Unexpected EOF. '}' is expected.")),
+            _ => stmts.push(parse_stmt(input, pos)?),
+        }
+    }
+
+    Ok(Node::Func(
+        Box::new(fname),
+        params,
+        Box::new(Node::Block(stmts)),
+    ))
+}
+
 fn parse_prog(input: &[Token], pos: &mut usize) -> Result<Node, String> {
     let mut prog: Vec<Node> = vec![];
-    loop {
-        let stmt = parse_stmt(input, pos)?;
-        prog.push(stmt);
-        if *pos == input.len() {
-            break;
-        }
+    while *pos < input.len() {
+        let func = parse_func(input, pos)?;
+        prog.push(func);
     }
 
     Ok(Node::Prog(prog))
@@ -373,14 +488,38 @@ pub fn parse(input: &[Token]) -> Result<Node, String> {
 mod tests {
     use super::*;
 
+    fn id(name: &str) -> Node {
+        Node::Id(name.to_string())
+    }
+
+    fn func(name: &str, params: &[&str], stmts: Vec<Node>) -> Node {
+        Node::Func(
+            Box::new(id(name)),
+            params.iter().map(|param| id(param)).collect(),
+            Box::new(Node::Block(stmts)),
+        )
+    }
+
+    fn main_program(stmts: Vec<Node>) -> Node {
+        Node::Prog(vec![func("main", &[], stmts)])
+    }
+
     fn parse_source(input: &str) -> Node {
         let tokens = crate::lexer::lex(input).unwrap();
         parse(&tokens).unwrap()
     }
 
+    fn parse_main(body: &str) -> Node {
+        parse_source(&format!("main() {{ {body} }}"))
+    }
+
     #[test]
     fn parse_test() {
         let input = vec![
+            Token::Id(String::from("main")),
+            Token::ParL,
+            Token::ParR,
+            Token::BraceL,
             Token::Id(String::from("a")),
             Token::Assign,
             Token::Num(3),
@@ -396,166 +535,213 @@ mod tests {
             Token::Return,
             Token::Id(String::from("a")),
             Token::Semi,
+            Token::BraceR,
         ];
-        let expected = Node::Prog(vec![
+        let expected = main_program(vec![
             Node::Assign(
-                Box::new(Node::Id(String::from("a"))),
+                Box::new(id("a")),
                 Box::new(Node::Lt(
                     Box::new(Node::Num(4)),
                     Box::new(Node::Add(Box::new(Node::Num(3)), Box::new(Node::Num(2)))),
                 )),
             ),
-            Node::Div(
-                Box::new(Node::Num(6)),
-                Box::new(Node::Id(String::from("a"))),
-            ),
-            Node::Return(Box::new(Node::Id(String::from("a")))),
+            Node::Div(Box::new(Node::Num(6)), Box::new(id("a"))),
+            Node::Return(Box::new(id("a"))),
         ]);
 
         assert_eq!(parse(&input).unwrap(), expected);
     }
 
     #[test]
+    fn parse_empty_program() {
+        assert_eq!(parse(&[]), Ok(Node::Prog(vec![])));
+    }
+
+    #[test]
+    fn parse_function_definitions_and_parameters() {
+        let expected = Node::Prog(vec![
+            func(
+                "add",
+                &["a", "b"],
+                vec![Node::Return(Box::new(Node::Add(
+                    Box::new(id("a")),
+                    Box::new(id("b")),
+                )))],
+            ),
+            func("main", &[], vec![Node::Return(Box::new(Node::Num(0)))]),
+        ]);
+
+        assert_eq!(
+            parse_source("add(a, b) { return a + b; } main() { return 0; }"),
+            expected
+        );
+    }
+
+    #[test]
+    fn parse_function_calls() {
+        let expected = main_program(vec![
+            Node::Call(Box::new(id("start")), vec![]),
+            Node::Return(Box::new(Node::Add(
+                Box::new(Node::Num(1)),
+                Box::new(Node::Call(
+                    Box::new(id("add")),
+                    vec![
+                        Node::Num(2),
+                        Node::Call(
+                            Box::new(id("mul")),
+                            vec![
+                                Node::Num(3),
+                                Node::Add(Box::new(Node::Num(4)), Box::new(Node::Num(5))),
+                            ],
+                        ),
+                    ],
+                )),
+            ))),
+        ]);
+
+        assert_eq!(
+            parse_main("start(); return 1 + add(2, mul(3, 4 + 5));"),
+            expected
+        );
+    }
+
+    #[test]
     fn parse_if_statement() {
-        let expected = Node::Prog(vec![Node::If(
-            Box::new(Node::Id(String::from("condition"))),
+        let expected = main_program(vec![Node::If(
+            Box::new(id("condition")),
             Box::new(Node::Return(Box::new(Node::Num(1)))),
         )]);
 
-        assert_eq!(parse_source("if (condition) return 1;"), expected);
+        assert_eq!(parse_main("if (condition) return 1;"), expected);
     }
 
     #[test]
     fn parse_if_else_statement() {
-        let expected = Node::Prog(vec![Node::IfElse(
-            Box::new(Node::Id(String::from("condition"))),
+        let expected = main_program(vec![Node::IfElse(
+            Box::new(id("condition")),
             Box::new(Node::Return(Box::new(Node::Num(1)))),
             Box::new(Node::Return(Box::new(Node::Num(2)))),
         )]);
 
         assert_eq!(
-            parse_source("if (condition) return 1; else return 2;"),
+            parse_main("if (condition) return 1; else return 2;"),
             expected
         );
     }
 
     #[test]
     fn parse_else_with_nearest_if_statement() {
-        let expected = Node::Prog(vec![Node::If(
-            Box::new(Node::Id(String::from("a"))),
+        let expected = main_program(vec![Node::If(
+            Box::new(id("a")),
             Box::new(Node::IfElse(
-                Box::new(Node::Id(String::from("b"))),
+                Box::new(id("b")),
                 Box::new(Node::Return(Box::new(Node::Num(1)))),
                 Box::new(Node::Return(Box::new(Node::Num(2)))),
             )),
         )]);
 
         assert_eq!(
-            parse_source("if (a) if (b) return 1; else return 2;"),
+            parse_main("if (a) if (b) return 1; else return 2;"),
             expected
         );
     }
 
     #[test]
     fn parse_while_statement() {
-        let expected = Node::Prog(vec![Node::While(
-            Box::new(Node::Lt(
-                Box::new(Node::Id(String::from("i"))),
-                Box::new(Node::Num(10)),
-            )),
+        let expected = main_program(vec![Node::While(
+            Box::new(Node::Lt(Box::new(id("i")), Box::new(Node::Num(10)))),
             Box::new(Node::Assign(
-                Box::new(Node::Id(String::from("i"))),
-                Box::new(Node::Add(
-                    Box::new(Node::Id(String::from("i"))),
-                    Box::new(Node::Num(1)),
-                )),
+                Box::new(id("i")),
+                Box::new(Node::Add(Box::new(id("i")), Box::new(Node::Num(1)))),
             )),
         )]);
 
-        assert_eq!(parse_source("while (i < 10) i = i + 1;"), expected);
+        assert_eq!(parse_main("while (i < 10) i = i + 1;"), expected);
     }
 
     #[test]
     fn parse_for_statement() {
-        let expected = Node::Prog(vec![Node::For(
+        let expected = main_program(vec![Node::For(
             Some(Box::new(Node::Assign(
-                Box::new(Node::Id(String::from("i"))),
+                Box::new(id("i")),
                 Box::new(Node::Num(0)),
             ))),
             Some(Box::new(Node::Lt(
-                Box::new(Node::Id(String::from("i"))),
+                Box::new(id("i")),
                 Box::new(Node::Num(10)),
             ))),
             Some(Box::new(Node::Assign(
-                Box::new(Node::Id(String::from("i"))),
-                Box::new(Node::Add(
-                    Box::new(Node::Id(String::from("i"))),
-                    Box::new(Node::Num(1)),
-                )),
+                Box::new(id("i")),
+                Box::new(Node::Add(Box::new(id("i")), Box::new(Node::Num(1)))),
             ))),
             Box::new(Node::Assign(
-                Box::new(Node::Id(String::from("sum"))),
-                Box::new(Node::Add(
-                    Box::new(Node::Id(String::from("sum"))),
-                    Box::new(Node::Id(String::from("i"))),
-                )),
+                Box::new(id("sum")),
+                Box::new(Node::Add(Box::new(id("sum")), Box::new(id("i")))),
             )),
         )]);
 
         assert_eq!(
-            parse_source("for (i = 0; i < 10; i = i + 1) sum = sum + i;"),
+            parse_main("for (i = 0; i < 10; i = i + 1) sum = sum + i;"),
             expected
         );
     }
 
     #[test]
     fn parse_for_statement_with_omitted_expressions() {
-        let expected = Node::Prog(vec![Node::For(
+        let expected = main_program(vec![Node::For(
             None,
             None,
             None,
             Box::new(Node::Return(Box::new(Node::Num(0)))),
         )]);
 
-        assert_eq!(parse_source("for (;;) return 0;"), expected);
+        assert_eq!(parse_main("for (;;) return 0;"), expected);
     }
 
     #[test]
     fn parse_compound_statement() {
-        let expected = Node::Prog(vec![Node::If(
-            Box::new(Node::Id(String::from("condition"))),
+        let expected = main_program(vec![Node::If(
+            Box::new(id("condition")),
             Box::new(Node::Block(vec![
-                Node::Assign(
-                    Box::new(Node::Id(String::from("a"))),
-                    Box::new(Node::Num(1)),
-                ),
-                Node::Return(Box::new(Node::Id(String::from("a")))),
+                Node::Assign(Box::new(id("a")), Box::new(Node::Num(1))),
+                Node::Return(Box::new(id("a"))),
             ])),
         )]);
 
-        assert_eq!(
-            parse_source("if (condition) { a = 1; return a; }"),
-            expected
-        );
+        assert_eq!(parse_main("if (condition) { a = 1; return a; }"), expected);
     }
 
     #[test]
     fn parse_nested_and_empty_compound_statements() {
-        let expected = Node::Prog(vec![Node::Block(vec![
+        let expected = main_program(vec![Node::Block(vec![
             Node::Block(vec![]),
             Node::Return(Box::new(Node::Num(1))),
         ])]);
 
-        assert_eq!(parse_source("{ {} return 1; }"), expected);
+        assert_eq!(parse_main("{ {} return 1; }"), expected);
     }
 
     #[test]
     fn reject_unclosed_compound_statement() {
-        let tokens = crate::lexer::lex("{ return 1;").unwrap();
+        let tokens = crate::lexer::lex("main() { return 1;").unwrap();
 
         assert_eq!(
             parse(&tokens),
             Err(String::from("Unexpected EOF. '}' is expected."))
         );
+    }
+
+    #[test]
+    fn reject_trailing_comma_in_parameter_list() {
+        let tokens = crate::lexer::lex("main(a,) { return a; }").unwrap();
+
+        assert!(parse(&tokens).is_err());
+    }
+
+    #[test]
+    fn reject_trailing_comma_in_argument_list() {
+        let tokens = crate::lexer::lex("main() { return add(1,); }").unwrap();
+
+        assert!(parse(&tokens).is_err());
     }
 }

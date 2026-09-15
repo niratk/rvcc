@@ -66,6 +66,17 @@ fn traverse_ast_and_alloc_idofs(ast: &Node, map: &mut IdAddrMap) {
             }
             traverse_ast_and_alloc_idofs(stmt, map);
         }
+        Node::Func(_, params, body) => {
+            for param in params {
+                traverse_ast_and_alloc_idofs(param, map);
+            }
+            traverse_ast_and_alloc_idofs(body, map);
+        }
+        Node::Call(_, args) => {
+            for arg in args {
+                traverse_ast_and_alloc_idofs(arg, map);
+            }
+        }
     }
 }
 
@@ -364,6 +375,9 @@ fn generate_node(ast: &Node, ctx: &mut CodegenContext) {
             println!("addi sp,sp,-16");
             println!("sd zero,0(sp)");
         }
+        Node::Func(_, _, _) | Node::Call(_, _) => {
+            panic!("function code generation is not implemented yet");
+        }
     }
 }
 
@@ -372,11 +386,19 @@ mod tests {
     use super::*;
 
     fn generate_source(source: &str) -> String {
-        let tokens = crate::lexer::lex(source).unwrap();
+        let source = format!("main() {{ {source} }}");
+        let tokens = crate::lexer::lex(&source).unwrap();
         let ast = crate::parser::parse(&tokens).unwrap();
+        let body = match ast {
+            Node::Prog(mut funcs) => match funcs.remove(0) {
+                Node::Func(_, _, body) => body,
+                node => panic!("expected function, got {node:?}"),
+            },
+            node => panic!("expected program, got {node:?}"),
+        };
 
         GENERATED_ASSEMBLY.with(|assembly| assembly.borrow_mut().clear());
-        generate(&ast);
+        generate(&body);
         GENERATED_ASSEMBLY.with(|assembly| std::mem::take(&mut *assembly.borrow_mut()))
     }
 
