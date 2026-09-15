@@ -23,6 +23,7 @@ pub enum Token {
     Else,
     While,
     For,
+    Comma,
 }
 
 pub fn lex(input: &str) -> Result<Vec<Token>, String> {
@@ -153,6 +154,10 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                 tokens.push(Token::Semi);
                 pos += 1;
             }
+            b',' => {
+                tokens.push(Token::Comma);
+                pos += 1;
+            }
             _ => return invalid_character(pos),
         }
     }
@@ -281,6 +286,28 @@ mod tests {
                 Token::BraceL,
                 Token::Return,
                 Token::Num(1),
+                Token::Semi,
+                Token::BraceR,
+            ])
+        );
+    }
+
+    #[test]
+    fn lex_comma() {
+        assert_eq!(
+            lex("add(a,b){return a+b;}"),
+            Ok(vec![
+                Token::Id(String::from("add")),
+                Token::ParL,
+                Token::Id(String::from("a")),
+                Token::Comma,
+                Token::Id(String::from("b")),
+                Token::ParR,
+                Token::BraceL,
+                Token::Return,
+                Token::Id(String::from("a")),
+                Token::Plus,
+                Token::Id(String::from("b")),
                 Token::Semi,
                 Token::BraceR,
             ])
