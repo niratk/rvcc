@@ -1,8 +1,11 @@
 use std::process::ExitCode;
 
+mod ast;
 mod codegen;
+mod ir;
 mod lexer;
 mod parser;
+mod sema;
 
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().collect();
@@ -13,9 +16,18 @@ fn main() -> ExitCode {
 
     let input = &argv[1];
 
-    let tokens = lexer::lex(input).unwrap();
-    let ast = parser::parse(&tokens).unwrap();
-    codegen::generate(&ast);
+    let result = lexer::lex(input)
+        .and_then(|tokens| parser::parse(&tokens))
+        .and_then(|ast| sema::analyze(ast).map_err(|error| error.to_string()));
+
+    let program = match result {
+        Ok(program) => program,
+        Err(error) => {
+            eprintln!("Error: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    print!("{}", codegen::generate(&program));
 
     ExitCode::SUCCESS
 }
