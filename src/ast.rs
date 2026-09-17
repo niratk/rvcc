@@ -35,6 +35,10 @@ pub enum Stmt {
         update: Option<Expr>,
         body: Box<Stmt>,
     },
+    Decl {
+        var_type: String,
+        var_name: String,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]

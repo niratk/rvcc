@@ -43,6 +43,10 @@ pub enum Stmt {
         update: Option<Expr>,
         body: Box<Stmt>,
     },
+    Decl {
+        ctype: CType,
+        target: LocalId,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -74,4 +78,9 @@ pub enum BinaryOp {
     LessEqual,
     Equal,
     NotEqual,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CType {
+    int,
 }

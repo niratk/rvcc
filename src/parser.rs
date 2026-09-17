@@ -244,6 +244,21 @@ fn parse_stmt(input: &[Token], pos: &mut usize) -> Result<Stmt, String> {
             expect_semicolon(input, pos)?;
             Ok(Stmt::Return(expr))
         }
+        Some(Token::Id(var_type)) => match input.get(*pos + 1) {
+            Some(Token::Id(var_name)) => {
+                *pos += 2;
+                expect_semicolon(input, pos)?;
+                Ok(Stmt::Decl {
+                    var_name: var_name.clone(),
+                    var_type: var_type.clone(),
+                })
+            }
+            _ => {
+                let expr = parse_expr(input, pos)?;
+                expect_semicolon(input, pos)?;
+                Ok(Stmt::Expr(expr))
+            }
+        },
         _ => {
             let expr = parse_expr(input, pos)?;
             expect_semicolon(input, pos)?;
@@ -341,6 +356,18 @@ mod tests {
 
     fn parse_source(source: &str) -> Result<Program, String> {
         parse(&crate::lexer::lex(source).unwrap())
+    }
+
+    #[test]
+    fn parse_var_declare() {
+        let program = parse_source("main(){int a;a=3;return a;}").unwrap();
+        match &program.functions[0].body.statements[0] {
+            Stmt::Decl { var_name, var_type } => {
+                assert_eq!(var_name, "a");
+                assert_eq!(var_type, "int");
+            }
+            stmt => panic!("expected variable declaration, got {stmt:?}"),
+        }
     }
 
     #[test]

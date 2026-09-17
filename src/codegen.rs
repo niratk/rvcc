@@ -165,6 +165,9 @@ impl<'a> FunctionGenerator<'a> {
                 writeln!(self.output, "j .Lbegin{}_{}", self.function.id.0, label).unwrap();
                 writeln!(self.output, ".Lend{}_{}:", self.function.id.0, label).unwrap();
             }
+            ir::Stmt::Decl { ctype, target } => {
+                todo!()
+            }
         }
     }
 

@@ -1,6 +1,9 @@
 use std::{collections::HashMap, fmt};
 
-use crate::{ast, ir};
+use crate::{
+    ast,
+    ir::{self, CType},
+};
 
 const MAX_ARGUMENTS: usize = 8;
 
@@ -160,6 +163,25 @@ impl<'a> Resolver<'a> {
                 self.scopes.pop();
                 result
             }
+            ast::Stmt::Decl { var_type, var_name } => {
+                if var_type != "int" {
+                    return Err(SemanticError::new(format!(
+                        "invalid data type: '{var_type}'"
+                    )));
+                }
+                let ctype = CType::int;
+                Ok(ir::Stmt::Decl {
+                    ctype,
+                    target: match self.find_local_this_scope(&var_name) {
+                        Some(_) => {
+                            return Err(SemanticError::new(format!(
+                                "'{var_name}' is already declared in this scope."
+                            )));
+                        }
+                        None => self.define_local(var_name),
+                    },
+                })
+            }
         }
     }
 
@@ -174,7 +196,11 @@ impl<'a> Resolver<'a> {
                 let value = self.resolve_expr(*value)?;
                 let target = match self.find_local(&name) {
                     Some(local) => local,
-                    None => self.define_local(name),
+                    None => {
+                        return Err(SemanticError::new(format!(
+                            "'{name}' is not declared in this scope."
+                        )));
+                    }
                 };
                 Ok(ir::Expr::Assign {
                     target,
@@ -236,6 +262,12 @@ impl<'a> Resolver<'a> {
             .rev()
             .find_map(|scope| scope.get(name).copied())
     }
+
+    fn find_local_this_scope(&self, name: &str) -> Option<ir::LocalId> {
+        self.scopes
+            .last()
+            .and_then(|scope| scope.get(name).copied())
+    }
 }
 
 fn resolve_binary_op(op: ast::BinaryOp) -> ir::BinaryOp {
@@ -265,6 +297,30 @@ mod tests {
     }
 
     #[test]
+    fn var_declare() {
+        let program = analyze_source("main(){int a; a=10; {int a; a = 20;} return a;}").unwrap();
+        assert_eq!(program.functions[0].local_count, 2);
+    }
+
+    #[test]
+    fn reject_var_double_declare() {
+        let src = "main(){int a; a=10; {int a; a = 20;} int a; return a;}";
+        assert!(error(src).contains("is already declared"));
+    }
+
+    #[test]
+    fn reject_undeclared() {
+        let src = "main(){a=10; {int a; a = 20;} int a; return a;}";
+        assert!(error(src).contains("is not declared"));
+    }
+
+    #[test]
+    fn reject_out_of_scope() {
+        let src = "main(){int a; a=10; {int b; a = 20;} b = 30; return a;}";
+        assert!(error(src).contains("is not declared"));
+    }
+
+    #[test]
     fn resolves_forward_calls_recursion_and_eight_arguments() {
         let program = analyze_source(
             "main() { return sum8(1,2,3,4,5,6,7,8); }
@@ -289,29 +345,29 @@ mod tests {
     }
 
     #[test]
-    fn rejects_read_before_first_assignment() {
+    fn requires_declaration_before_use() {
         assert!(error("main() { return a; }").contains("undefined variable"));
         assert!(error("main() { a = a + 1; }").contains("undefined variable"));
-        analyze_source("main() { a = 1; return a; }").unwrap();
+        analyze_source("main() { int a; a = 1; return a; }").unwrap();
     }
 
     #[test]
     fn resolves_outer_assignments_and_separates_sibling_locals() {
         let program = analyze_source(
-            "main() { outer = 1; { outer = 2; sibling = 3; } { sibling = 4; } return outer; }",
+            "main() { int outer; outer = 1; { int sibling; outer = 2; sibling = 3; } { int sibling; sibling = 4; } return outer; }",
         )
         .unwrap();
         let function = &program.functions[0];
         assert_eq!(function.local_count, 3);
-        assert!(error("main() { { local = 1; } return local; }").contains("undefined variable"));
+        assert!(
+            error("main() { { int local; local = 1; } return local; }")
+                .contains("undefined variable")
+        );
     }
 
     #[test]
     fn for_has_its_own_scope() {
-        analyze_source("main() { for (i = 0; i < 2; i = i + 1) {} return 0; }").unwrap();
-        assert!(
-            error("main() { for (i = 0; i < 2; i = i + 1) {} return i; }")
-                .contains("undefined variable")
-        );
+        analyze_source("main() { for (; 0;) int i; return 0; }").unwrap();
+        assert!(error("main() { for (; 0;) int i; return i; }").contains("undefined variable"));
     }
 }
