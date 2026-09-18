@@ -84,7 +84,7 @@ sp     → +----------------+  16-byte aligned
 
 ## Todo
 
-- [ ] demand `int` to declare variable
+- [x] demand `int` to declare variable/functions
 - [ ]
 
 ## Limitation
@@ -93,6 +93,7 @@ sp     → +----------------+  16-byte aligned
     - `int a;` supported
     - `int a,b;` unsupported
     - `int a = 3;` unsupported
+    - so far, the ir only partially holds type info since there's only `int` type.
 
 - This is an expression compiler rather than a complete C compiler. It only
   supports the grammar described above; declarations, types, pointers, arrays,

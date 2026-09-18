@@ -282,7 +282,9 @@ mod tests {
 
     #[test]
     fn generates_parameter_slots_and_call_registers() {
-        let assembly = generate_source("add(a,b) { return a+b; } main() { return add(20,22); }");
+        let assembly = generate_source(
+            "int add(int a,int b) { return a+b; } int main() { return add(20,22); }",
+        );
 
         assert!(assembly.contains("add:\naddi sp,sp,-32\n"));
         assert!(assembly.contains("sd a0,-24(s0)\nsd a1,-32(s0)\n"));
@@ -293,7 +295,7 @@ mod tests {
     #[test]
     fn labels_are_unique_between_functions() {
         let assembly = generate_source(
-            "f(a) { if (a) return 1; return 0; } main() { while (0) {} return f(1); }",
+            "int f(int a) { if (a) return 1; return 0; } int main() { while (0) {} return f(1); }",
         );
 
         assert!(assembly.contains(".Lend0_0:"));
@@ -306,14 +308,14 @@ mod tests {
 
     #[test]
     fn fallthrough_returns_zero() {
-        let assembly = generate_source("main() { value = 42; }");
+        let assembly = generate_source("int main() {}");
         assert!(assembly.contains("li a0,0\n.Lreturn0:\n"));
     }
 
     #[test]
     fn nested_calls_preserve_earlier_arguments() {
         let assembly = generate_source(
-            "id(x) { return x; } add(a,b) { return a+b; } main() { return add(id(1), id(2)); }",
+            "int id(int x) { return x; } int add(int a,int b) { return a+b; } int main() { return add(id(1), id(2)); }",
         );
         assert_eq!(assembly.matches("call id\n").count(), 2);
         assert!(assembly.contains("call add\n"));

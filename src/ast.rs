@@ -3,10 +3,13 @@ pub struct Program {
     pub functions: Vec<Function>,
 }
 
+type CTypeName = String;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Function {
+    pub return_type: CTypeName,
     pub name: String,
-    pub params: Vec<String>,
+    pub params: Vec<(CTypeName, String)>,
     pub body: Block,
 }
 

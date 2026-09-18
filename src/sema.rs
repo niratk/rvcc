@@ -89,8 +89,18 @@ impl<'a> Resolver<'a> {
         id: ir::FunctionId,
         function: ast::Function,
     ) -> Result<ir::Function, SemanticError> {
+        if function.return_type != "int" {
+            return Err(SemanticError::new(format!(
+                "Invalid data type: '{}'",
+                function.return_type
+            )));
+        }
+        let return_type = CType::int;
         let mut params = Vec::with_capacity(function.params.len());
-        for name in function.params {
+        for (t, name) in function.params {
+            if t != "int" {
+                return Err(SemanticError::new(format!("Invalid data type: '{t}'")));
+            }
             if self.scopes[0].contains_key(&name) {
                 return Err(SemanticError::new(format!(
                     "duplicate parameter '{}' in function '{}'",
@@ -105,6 +115,7 @@ impl<'a> Resolver<'a> {
         let body = self.resolve_block(function.body)?;
         Ok(ir::Function {
             id,
+            return_type,
             name: function.name,
             params,
             body,
@@ -166,7 +177,7 @@ impl<'a> Resolver<'a> {
             ast::Stmt::Decl { var_type, var_name } => {
                 if var_type != "int" {
                     return Err(SemanticError::new(format!(
-                        "invalid data type: '{var_type}'"
+                        "Invalid data type: '{var_type}'"
                     )));
                 }
                 let ctype = CType::int;
@@ -298,33 +309,34 @@ mod tests {
 
     #[test]
     fn var_declare() {
-        let program = analyze_source("main(){int a; a=10; {int a; a = 20;} return a;}").unwrap();
+        let program =
+            analyze_source("int main(){int a; a=10; {int a; a = 20;} return a;}").unwrap();
         assert_eq!(program.functions[0].local_count, 2);
     }
 
     #[test]
     fn reject_var_double_declare() {
-        let src = "main(){int a; a=10; {int a; a = 20;} int a; return a;}";
+        let src = "int main(){int a; a=10; {int a; a = 20;} int a; return a;}";
         assert!(error(src).contains("is already declared"));
     }
 
     #[test]
     fn reject_undeclared() {
-        let src = "main(){a=10; {int a; a = 20;} int a; return a;}";
+        let src = "int main(){a=10; {int a; a = 20;} int a; return a;}";
         assert!(error(src).contains("is not declared"));
     }
 
     #[test]
     fn reject_out_of_scope() {
-        let src = "main(){int a; a=10; {int b; a = 20;} b = 30; return a;}";
+        let src = "int main(){int a; a=10; {int b; a = 20;} b = 30; return a;}";
         assert!(error(src).contains("is not declared"));
     }
 
     #[test]
     fn resolves_forward_calls_recursion_and_eight_arguments() {
         let program = analyze_source(
-            "main() { return sum8(1,2,3,4,5,6,7,8); }
-             sum8(a,b,c,d,e,f,g,h) { if (a == 0) return 0; return a+b+c+d+e+f+g+h; }",
+            "int main() { return sum8(1,2,3,4,5,6,7,8); }
+             int sum8(int a,int b,int c,int d,int e,int f,int g,int h) { if (a == 0) return 0; return a+b+c+d+e+f+g+h; }",
         )
         .unwrap();
 
@@ -335,39 +347,44 @@ mod tests {
 
     #[test]
     fn rejects_invalid_function_definitions_and_calls() {
-        assert!(error("main() {} main() {}").contains("duplicate function"));
-        assert!(error("main() {} f(a,a) {}").contains("duplicate parameter"));
-        assert!(error("other() {}").contains("define main"));
-        assert!(error("main(a) {}").contains("zero parameters"));
-        assert!(error("main() { f(); } f(a) {}").contains("1 are required"));
-        assert!(error("main() { missing(); }").contains("undefined function"));
-        assert!(error("main() { f(1,2,3,4,5,6,7,8,9); } f() {}").contains("at most 8"));
+        assert!(error("invalid main(){return 0;}").contains("Invalid data type"));
+        assert!(
+            error("int main(){return 0;} int add(int a,invalid b) {return a + b;}")
+                .contains("Invalid data type")
+        );
+        assert!(error("int main() {} int main() {}").contains("duplicate function"));
+        assert!(error("int main() {} int f(int a,int a) {}").contains("duplicate parameter"));
+        assert!(error("int other() {}").contains("define main"));
+        assert!(error("int main(int a) {}").contains("zero parameters"));
+        assert!(error("int main() { f(); } int f(int a) {}").contains("1 are required"));
+        assert!(error("int main() { missing(); }").contains("undefined function"));
+        assert!(error("int main() { f(1,2,3,4,5,6,7,8,9); } int f() {}").contains("at most 8"));
     }
 
     #[test]
     fn requires_declaration_before_use() {
-        assert!(error("main() { return a; }").contains("undefined variable"));
-        assert!(error("main() { a = a + 1; }").contains("undefined variable"));
-        analyze_source("main() { int a; a = 1; return a; }").unwrap();
+        assert!(error("int main() { return a; }").contains("undefined variable"));
+        assert!(error("int main() { a = a + 1; }").contains("undefined variable"));
+        analyze_source("int main() { int a; a = 1; return a; }").unwrap();
     }
 
     #[test]
     fn resolves_outer_assignments_and_separates_sibling_locals() {
         let program = analyze_source(
-            "main() { int outer; outer = 1; { int sibling; outer = 2; sibling = 3; } { int sibling; sibling = 4; } return outer; }",
+            "int main() { int outer; outer = 1; { int sibling; outer = 2; sibling = 3; } { int sibling; sibling = 4; } return outer; }",
         )
         .unwrap();
         let function = &program.functions[0];
         assert_eq!(function.local_count, 3);
         assert!(
-            error("main() { { int local; local = 1; } return local; }")
+            error("int main() { { int local; local = 1; } return local; }")
                 .contains("undefined variable")
         );
     }
 
     #[test]
     fn for_has_its_own_scope() {
-        analyze_source("main() { for (; 0;) int i; return 0; }").unwrap();
-        assert!(error("main() { for (; 0;) int i; return i; }").contains("undefined variable"));
+        analyze_source("int main() { for (; 0;) int i; return 0; }").unwrap();
+        assert!(error("int main() { for (; 0;) int i; return i; }").contains("undefined variable"));
     }
 }

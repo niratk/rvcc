@@ -12,6 +12,7 @@ pub struct LocalId(pub usize);
 #[derive(Debug, PartialEq, Eq)]
 pub struct Function {
     pub id: FunctionId,
+    pub return_type: CType,
     pub name: String,
     pub params: Vec<LocalId>,
     pub body: Block,

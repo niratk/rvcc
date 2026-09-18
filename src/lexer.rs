@@ -295,12 +295,15 @@ mod tests {
     #[test]
     fn lex_comma() {
         assert_eq!(
-            lex("add(a,b){return a+b;}"),
+            lex("int add(int a,int b){return a+b;}"),
             Ok(vec![
+                Token::Id(String::from("int")),
                 Token::Id(String::from("add")),
                 Token::ParL,
+                Token::Id(String::from("int")),
                 Token::Id(String::from("a")),
                 Token::Comma,
+                Token::Id(String::from("int")),
                 Token::Id(String::from("b")),
                 Token::ParR,
                 Token::BraceL,

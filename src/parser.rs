@@ -306,6 +306,11 @@ fn expect_semicolon(input: &[Token], pos: &mut usize) -> Result<(), String> {
 }
 
 fn parse_function(input: &[Token], pos: &mut usize) -> Result<Function, String> {
+    let return_type = match input.get(*pos) {
+        Some(Token::Id(type_name)) => type_name.clone(),
+        token => return Err(format!("unexpected token: {token:?}")),
+    };
+    *pos += 1;
     let name = match input.get(*pos) {
         Some(Token::Id(name)) => name.clone(),
         token => return Err(format!("unexpected token: {token:?}")),
@@ -318,11 +323,17 @@ fn parse_function(input: &[Token], pos: &mut usize) -> Result<Function, String> 
         *pos += 1;
     } else {
         loop {
-            match input.get(*pos) {
-                Some(Token::Id(param)) => params.push(param.clone()),
+            let param_type = match input.get(*pos) {
+                Some(Token::Id(param_type)) => param_type.clone(),
                 token => return Err(format!("unexpected token: {token:?}")),
-            }
+            };
             *pos += 1;
+            let param_name = match input.get(*pos) {
+                Some(Token::Id(param)) => param.clone(),
+                token => return Err(format!("unexpected token: {token:?}")),
+            };
+            *pos += 1;
+            params.push((param_type, param_name));
             match input.get(*pos) {
                 Some(Token::Comma) => *pos += 1,
                 Some(Token::ParR) => {
@@ -335,6 +346,7 @@ fn parse_function(input: &[Token], pos: &mut usize) -> Result<Function, String> 
     }
 
     Ok(Function {
+        return_type,
         name,
         params,
         body: parse_block(input, pos)?,
@@ -359,8 +371,19 @@ mod tests {
     }
 
     #[test]
+    fn parse_fn_define() {
+        let program = parse_source(
+            "int add(int a, int b) { return a + b; } int main() { int a; a = 3; int b; b = 10; return add(a,b); }",
+        )
+        .unwrap();
+        assert_eq!(program.functions.len(), 2);
+        assert_eq!(program.functions[0].return_type, "int");
+        assert_eq!(program.functions[0].params[0], ("int".into(), "a".into()));
+    }
+
+    #[test]
     fn parse_var_declare() {
-        let program = parse_source("main(){int a;a=3;return a;}").unwrap();
+        let program = parse_source("int main(){int a;a=3;return a;}").unwrap();
         match &program.functions[0].body.statements[0] {
             Stmt::Decl { var_name, var_type } => {
                 assert_eq!(var_name, "a");
@@ -372,13 +395,18 @@ mod tests {
 
     #[test]
     fn parses_functions_parameters_and_calls() {
-        let program =
-            parse_source("add(a, b) { return a + b; } main() { return 1 + add(2, add(3, 4)); }")
-                .unwrap();
+        let program = parse_source(
+            "int add(int a, int b) { return a + b; } int main() { return 1 + add(2, add(3, 4)); }",
+        )
+        .unwrap();
 
         assert_eq!(program.functions.len(), 2);
         assert_eq!(program.functions[0].name, "add");
-        assert_eq!(program.functions[0].params, ["a", "b"]);
+        assert_eq!(program.functions[0].return_type, "int");
+        assert_eq!(
+            program.functions[0].params,
+            [("int".into(), "a".into()), ("int".into(), "b".into())]
+        );
         assert!(matches!(
             program.functions[1].body.statements[0],
             Stmt::Return(Expr::Binary { .. })
@@ -388,7 +416,7 @@ mod tests {
     #[test]
     fn parses_control_flow_and_blocks() {
         let program = parse_source(
-            "main() { if (1) { a = 1; } else a = 2; while (a) a = a - 1; for (i = 0; i < 3; i = i + 1) {} }",
+            "int main() { if (1) { a = 1; } else a = 2; while (a) a = a - 1; for (i = 0; i < 3; i = i + 1) {} }",
         )
         .unwrap();
 
@@ -401,7 +429,7 @@ mod tests {
 
     #[test]
     fn assignment_is_right_associative() {
-        let program = parse_source("main() { a = b = 1; }").unwrap();
+        let program = parse_source("int main() { a = b = 1; }").unwrap();
         let Stmt::Expr(Expr::Assign { name, value }) = &program.functions[0].body.statements[0]
         else {
             panic!("expected assignment");
@@ -412,15 +440,15 @@ mod tests {
 
     #[test]
     fn rejects_invalid_assignment_target_and_trailing_commas() {
-        assert!(parse_source("main() { (1 + 2) = 3; }").is_err());
-        assert!(parse_source("main(a,) { return a; }").is_err());
-        assert!(parse_source("main() { return f(1,); }").is_err());
+        assert!(parse_source("int main() { (1 + 2) = 3; }").is_err());
+        assert!(parse_source("int main(int a,) { return a; }").is_err());
+        assert!(parse_source("int main() { return f(1,); }").is_err());
     }
 
     #[test]
     fn rejects_unclosed_block() {
         assert_eq!(
-            parse_source("main() { return 1;"),
+            parse_source("int main() { return 1;"),
             Err(String::from("Unexpected EOF. '}' is expected."))
         );
     }
