@@ -57,6 +57,11 @@ assert 36 "int sum8(int a,int b,int c,int d,int e,int f,int g,int h) { return a+
 assert 21 "int add(int a,int b) { return a+b; } int identity(int value) { return value; } int main() { return add(identity(10), identity(11)); }"
 assert 120 "int factorial(int n) { if (n <= 1) return 1; return n * factorial(n - 1); } int main() { return factorial(5); }"
 assert 7 "int choose(int value) { if (value) return 7; return 9; } int main() { return choose(1); }"
+assert 10 "int main(){int a; int b; b = &a; a = 10; return *b;}"
+assert 42 "int main() { int value; value = 42; return *&value; }"
+assert 73 "int main() { int value; int pointer; int pointerpointer; value = 73; pointer = &value; pointerpointer = &pointer; return **pointerpointer; }"
+assert 42 "int identity(int value) { return value; } int main() { int value; value = 39; return *identity(&value) + 3; }"
+assert 51 "int read(int value) { int pointer; pointer = &value; return *pointer; } int main() { return read(51); }"
 
 assert_error "int main() { return missing; }"
 assert_error "int main() { { int i; for (i = 0; i < 1; i = i + 1) {} } return i; }"
@@ -64,5 +69,9 @@ assert_error "int main() { return f(); } int f(int value) { return value; }"
 assert_error "int main() {} int main() {}"
 assert_error "int main(int value) { return value; }"
 assert_error "int main() { return nine(1,2,3,4,5,6,7,8,9); } int nine(int a,int b,int c,int d,int e,int f,int g,int h,int i) { return 0; }"
+assert_error "int main() { return &1; }"
+assert_error "int main() { int value; return &(value + 1); }"
+assert_error "int main() { return &helper(); } int helper() { return 1; }"
+assert_error "int main() { int value; return &*value; }"
 
 echo OK

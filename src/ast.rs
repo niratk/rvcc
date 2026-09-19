@@ -48,6 +48,8 @@ pub enum Stmt {
 pub enum Expr {
     Number(u64),
     Variable(String),
+    AddrOf(Box<Expr>),
+    Deref(Box<Expr>),
     Assign {
         name: String,
         value: Box<Expr>,

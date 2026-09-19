@@ -27,7 +27,9 @@ eq     = cmp, (("==" | "!="), cmp)* ;
 cmp    = add, ((">" | ">=" | "<" | "<="), add)* ;
 add    = mul, { ("+" | "-"), mul } ;
 mul    = unary, { ("*" | "/"), unary } ;
-unary  = ("+" | "-")?, factor ;
+unary  = ("+" | "-")?, factor
+        | "*", unary
+        | "&", unary ;
 factor = number
         | ident, ("(",args?,")")?
         | "(", expr, ")" ;
@@ -84,25 +86,43 @@ sp     → +----------------+  16-byte aligned
 
 ## Todo
 
-- [x] demand `int` to declare variable/functions
-- [ ]
+- [ ] Step 16 unary ops `&`(addr), `*`(deref) support
+    - [x] lexer
+        - [x] add `&` token
+    - [x] parser
+        - [x] modify `parse_unary` to accept new grammar.
+    - [x] ast
+        - [x] define `Expr::Addr(Box<Expr>)` and `Expr::Deref(Box<Expr>)` // accept gracefully in AST, reject in semantic analysis.
+    - [x] sema
+        - [x] resolve var_name to localid for expr::addr
+    - [x] ir
+        - [x] define `Ir::Addr(LocalID)`, `Ir::deref(Box<ir::expr>)`
+    - [x] codegen
+- [ ] current ABI is ILP64. Change this to LP64.
 
 ## Limitation
 
-- variable declaration
-    - `int a;` supported
-    - `int a,b;` unsupported
-    - `int a = 3;` unsupported
-    - so far, the ir only partially holds type info since there's only `int` type.
-
+- Variable declarations are limited to one uninitialized variable at a time:
+  `int a;` is supported, while `int a,b;` and `int a = 3;` are not. A variable
+  must be declared before use; assignment does not implicitly declare it.
+- `int` is currently the only type and is represented as a 64-bit value. The IR
+  therefore holds only partial type information.
+- `&` accepts only a declared variable and returns the address of its local
+  stack slot as a 64-bit integer. `*` accepts any expression, treats its result
+  as an address, and loads one 64-bit integer from that address.
+- Unary `+` is currently discarded while building the AST, so `&+a` and
+  `&(+a)` are incorrectly accepted as if they were `&a`.
+- Pointer types and pointer validity are not tracked. Consequently, invalid or
+  unaligned addresses produced by `*` are not diagnosed by the compiler and may
+  fail at runtime.
 - This is an expression compiler rather than a complete C compiler. It only
-  supports the grammar described above; declarations, types, pointers, arrays,
-  and comments are not supported.
+  supports the grammar described above; arrays, declaration initializers,
+  comma-separated declarations, and comments are not supported.
 - The entire source program must be passed as a single command-line argument,
   and every statement must end with a semicolon.
-- Variables hold 64-bit integer values and are implicitly created by their first
-  assignment. Blocks and `for` statements introduce scopes; reading a variable
-  before it becomes visible is a compile error.
+- Variables hold 64-bit integer values. Blocks and `for` statements introduce
+  scopes; using a variable before its declaration or outside its scope is a
+  compile error.
 - Functions accept at most eight integer arguments. The program must define
   `main()` with no parameters. Reaching the end of a function returns `0`.
 - Integer overflow and division by zero are not diagnosed.
@@ -113,3 +133,4 @@ sp     → +----------------+  16-byte aligned
 ## Reference
 
 - [低レイヤを知りたい人のためのCコンパイラ作成入門](https://www.sigbus.info/compilerbook)
+  This project has implemented until the Step 17.

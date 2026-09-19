@@ -64,6 +64,14 @@ fn parse_unary(input: &[Token], pos: &mut usize) -> Result<Expr, String> {
                 rhs: Box::new(parse_factor(input, pos)?),
             })
         }
+        Some(Token::Addr) => {
+            *pos += 1;
+            Ok(Expr::AddrOf(Box::new(parse_unary(input, pos)?)))
+        }
+        Some(Token::Mult) => {
+            *pos += 1;
+            Ok(Expr::Deref(Box::new(parse_unary(input, pos)?)))
+        }
         _ => parse_factor(input, pos),
     }
 }
@@ -436,6 +444,22 @@ mod tests {
         };
         assert_eq!(name, "a");
         assert!(matches!(value.as_ref(), Expr::Assign { name, .. } if name == "b"));
+    }
+
+    #[test]
+    fn parses_address_and_dereference_as_unary_operators() {
+        let program = parse_source("int main() { return *&value + 1; }").unwrap();
+
+        assert_eq!(
+            program.functions[0].body.statements[0],
+            Stmt::Return(Expr::Binary {
+                op: BinaryOp::Add,
+                lhs: Box::new(Expr::Deref(Box::new(Expr::AddrOf(Box::new(
+                    Expr::Variable(String::from("value")),
+                ))))),
+                rhs: Box::new(Expr::Number(1)),
+            })
+        );
     }
 
     #[test]

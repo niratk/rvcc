@@ -165,8 +165,8 @@ impl<'a> FunctionGenerator<'a> {
                 writeln!(self.output, "j .Lbegin{}_{}", self.function.id.0, label).unwrap();
                 writeln!(self.output, ".Lend{}_{}:", self.function.id.0, label).unwrap();
             }
-            ir::Stmt::Decl { ctype, target } => {
-                todo!()
+            ir::Stmt::Decl { .. } => {
+                // do nothing
             }
         }
     }
@@ -185,6 +185,17 @@ impl<'a> FunctionGenerator<'a> {
                     self.frame.local_offset(*local)
                 )
                 .unwrap();
+                self.push_from("t0");
+            }
+            ir::Expr::AddrOf(local) => {
+                let local_ofs = self.frame.local_offset(*local);
+                writeln!(self.output, "addi t0,s0,-{}", local_ofs).unwrap();
+                self.push_from("t0");
+            }
+            ir::Expr::Deref(expr) => {
+                self.generate_expr(expr);
+                self.pop_into("t0");
+                writeln!(self.output, "ld t0,0(t0)").unwrap();
                 self.push_from("t0");
             }
             ir::Expr::Assign { target, value } => {
@@ -319,5 +330,13 @@ mod tests {
         );
         assert_eq!(assembly.matches("call id\n").count(), 2);
         assert!(assembly.contains("call add\n"));
+    }
+
+    #[test]
+    fn generates_local_address_and_64_bit_dereference() {
+        let assembly = generate_source("int main() { int value; return *&value; }");
+
+        assert!(assembly.contains("addi t0,s0,-24\n"));
+        assert!(assembly.contains("ld t0,0(t0)\n"));
     }
 }

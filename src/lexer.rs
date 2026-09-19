@@ -24,6 +24,7 @@ pub enum Token {
     While,
     For,
     Comma,
+    Addr,
 }
 
 pub fn lex(input: &str) -> Result<Vec<Token>, String> {
@@ -158,6 +159,10 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                 tokens.push(Token::Comma);
                 pos += 1;
             }
+            b'&' => {
+                tokens.push(Token::Addr);
+                pos += 1;
+            }
             _ => return invalid_character(pos),
         }
     }
@@ -223,7 +228,7 @@ mod tests {
 
     #[test]
     fn lex_control_flow_statements() {
-        let input = "if (a) return 1; else while (b) for (i = 0; i < 10; i = i + 1) a = a + i;";
+        let input = "if (a) return 1; else while (b) for (i = 0; i < 10; i = i + 1) a = &a + i;";
         let expected = vec![
             Token::If,
             Token::ParL,
@@ -255,6 +260,7 @@ mod tests {
             Token::ParR,
             Token::Id(String::from("a")),
             Token::Assign,
+            Token::Addr,
             Token::Id(String::from("a")),
             Token::Plus,
             Token::Id(String::from("i")),
@@ -262,6 +268,18 @@ mod tests {
         ];
 
         assert_eq!(lex(input), Ok(expected));
+    }
+
+    #[test]
+    fn lex_address_and_dereference_operators() {
+        assert_eq!(
+            lex("*&value"),
+            Ok(vec![
+                Token::Mult,
+                Token::Addr,
+                Token::Id(String::from("value")),
+            ])
+        );
     }
 
     #[test]

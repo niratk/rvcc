@@ -203,6 +203,25 @@ impl<'a> Resolver<'a> {
                 .find_local(&name)
                 .map(ir::Expr::Local)
                 .ok_or_else(|| SemanticError::new(format!("undefined variable: '{name}'"))),
+            ast::Expr::AddrOf(e) => {
+                let e = self.resolve_expr(*e)?;
+                let local;
+                match e {
+                    ir::Expr::Local(_local) => {
+                        local = _local;
+                    }
+                    _ => {
+                        return Err(SemanticError::new(
+                            "address-of operator requires a variable",
+                        ));
+                    }
+                }
+                Ok(ir::Expr::AddrOf(local))
+            }
+            ast::Expr::Deref(e) => {
+                let target = self.resolve_expr(*e)?;
+                Ok(ir::Expr::Deref(Box::new(target)))
+            }
             ast::Expr::Assign { name, value } => {
                 let value = self.resolve_expr(*value)?;
                 let target = match self.find_local(&name) {
@@ -366,6 +385,34 @@ mod tests {
         assert!(error("int main() { return a; }").contains("undefined variable"));
         assert!(error("int main() { a = a + 1; }").contains("undefined variable"));
         analyze_source("int main() { int a; a = 1; return a; }").unwrap();
+    }
+
+    #[test]
+    fn resolves_address_and_dereference_operands() {
+        let program = analyze_source("int main() { int value; return *&value; }").unwrap();
+
+        assert!(matches!(
+            &program.functions[0].body.statements[1],
+            ir::Stmt::Return(ir::Expr::Deref(operand))
+                if matches!(operand.as_ref(), ir::Expr::AddrOf(ir::LocalId(0)))
+        ));
+    }
+
+    #[test]
+    fn address_of_requires_a_declared_variable() {
+        for source in [
+            "int main() { return &1; }",
+            "int main() { int a; return &(a + 1); }",
+            "int main() { return &helper(); } int helper() { return 1; }",
+            "int main() { int a; return &*a; }",
+        ] {
+            assert!(
+                error(source).contains("address-of operator requires a variable"),
+                "unexpected diagnostic for {source}"
+            );
+        }
+
+        assert!(error("int main() { return &missing; }").contains("undefined variable"));
     }
 
     #[test]

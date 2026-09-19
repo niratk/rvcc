@@ -54,6 +54,8 @@ pub enum Stmt {
 pub enum Expr {
     Number(u64),
     Local(LocalId),
+    AddrOf(LocalId),
+    Deref(Box<Expr>),
     Assign {
         target: LocalId,
         value: Box<Expr>,
